@@ -34,32 +34,46 @@ const progress = (msg: string) => {
   if (process.stderr.isTTY) process.stderr.write(`\x1b[2m${msg}\x1b[0m\n`);
 };
 
+const exitEarly = (result: string, message: string) => {
+  console.log(values.json ? JSON.stringify({ query, result }) : message);
+  process.exit(0);
+};
+
 try {
   const baseOverrides = await loadConfigWithout(root, values["exclude-plugin"]);
   progress(`building (${values.env})…`);
   const snap = await capture(root, matchesTarget, baseOverrides, values.env);
   const targets = findTargets(snap, query);
   if (targets.length === 0) {
-    console.log(`"${query}" is not in the module graph — nothing was kept.`);
-    process.exit(0);
+    exitEarly("not-in-graph", `"${query}" is not in the module graph — nothing was kept.`);
   }
   const kept = targets.filter((t) => snap.rendered.has(t.id));
   if (kept.length === 0) {
     const external = targets.some((t) => !isAbsolute(t.id) && !t.id.startsWith("\0"));
-    console.log(
-      external
-        ? `"${query}" is external in this build — imported at runtime, not bundled (typical for SSR environments).`
-        : `"${query}" is in the module graph but fully tree-shaken out — nothing was kept.`,
+    if (external) {
+      exitEarly(
+        "external",
+        `"${query}" is external in this build — imported at runtime, not bundled (typical for SSR environments).`,
+      );
+    }
+    exitEarly(
+      "tree-shaken",
+      `"${query}" is in the module graph but fully tree-shaken out — nothing was kept.`,
     );
-    process.exit(0);
   }
 
-  const chain = chainToEntry(snap, kept[0].id);
-  const hasEsmTargets = kept.some((t) => t.format !== "cjs");
+  const largest = kept.reduce((a, b) =>
+    (snap.rendered.get(b.id)?.bytes ?? 0) > (snap.rendered.get(a.id)?.bytes ?? 0) ? b : a,
+  );
+  const chain = chainToEntry(snap, largest.id);
+  const target = {
+    isPackage: kept.some((t) => t.id.includes(`/node_modules/${query}/`)),
+    hasEsm: kept.some((t) => t.format !== "cjs"),
+  };
   if (!values["skip-measure"]) progress("measuring with variant rebuilds…");
   const deltas = values["skip-measure"]
     ? []
-    : await measure(root, query, snap, hasEsmTargets, baseOverrides, values.env);
+    : await measure(root, query, snap, target, baseOverrides, values.env);
   const causes = reconcile(await classify(snap, targets, query, root), deltas);
   const report = buildReport(
     query,
@@ -73,7 +87,12 @@ try {
     deltas,
   );
 
-  console.log(values.json ? JSON.stringify(report, null, 2) : render(report, Number(values.limit)));
+  const limit = Number(values.limit);
+  console.log(
+    values.json
+      ? JSON.stringify(report, null, 2)
+      : render(report, Number.isFinite(limit) && limit > 0 ? limit : 8),
+  );
 } catch (error) {
   console.error(`build failed: ${error instanceof Error ? error.message : error}`);
   process.exit(1);

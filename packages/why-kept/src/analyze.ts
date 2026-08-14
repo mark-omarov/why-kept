@@ -85,7 +85,7 @@ export async function classify(
     causes.push({
       kind: "cjs",
       confidence: "high",
-      detail: `${cjs.length} of ${kept.length} kept modules are CommonJS, which limits tree-shaking`,
+      detail: `${describeCjsShare(cjs.length, kept.length)}, which limits tree-shaking`,
       fix: "look for an ESM build or an ESM alternative",
     });
   }
@@ -109,7 +109,12 @@ function scanImportStatements(snap: Snapshot, query: string, root: string): Caus
   const causes: Cause[] = [];
   for (const m of snap.modules.values()) {
     if (!m.code) continue;
-    const [imports] = parse(m.code);
+    let imports;
+    try {
+      [imports] = parse(m.code);
+    } catch {
+      continue;
+    }
     for (const s of imports) {
       if (s.d !== -1 || !s.n || !matchesQuery(s.n, query)) continue;
       const statement = m.code.slice(s.ss, s.se);
@@ -131,6 +136,12 @@ function scanImportStatements(snap: Snapshot, query: string, root: string): Caus
     }
   }
   return causes;
+}
+
+function describeCjsShare(cjs: number, kept: number): string {
+  if (kept === 1) return "the kept module is CommonJS";
+  if (cjs === kept) return `all ${kept} kept modules are CommonJS`;
+  return `${cjs} of ${kept} kept modules are CommonJS`;
 }
 
 function matchesQuery(specifier: string, query: string): boolean {
@@ -155,11 +166,13 @@ function nearestPackageJson(id: string): { path: string; json: PkgJson } | null 
   while (dir.includes("node_modules") && dir !== dirname(dir)) {
     const path = join(dir, "package.json");
     try {
-      found = { path, json: JSON.parse(readFileSync(path, "utf8")) };
-      break;
-    } catch {
-      dir = dirname(dir);
-    }
+      const json = JSON.parse(readFileSync(path, "utf8"));
+      if (json.name) {
+        found = { path, json };
+        break;
+      }
+    } catch {}
+    dir = dirname(dir);
   }
   pkgCache.set(start, found);
   return found;

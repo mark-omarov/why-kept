@@ -7,25 +7,26 @@ npx why-kept lodash
 ```
 
 ```
-why-kept lodash — 1 module kept · bundle 70.2 kB (25.6 kB gzip)
+why-kept lodash — 1 module kept · bundle 71.9 kB (26.2 kB gzip)
 
 import chain
   index.html → main.js → lodash/lodash.js
 
 kept modules (largest first, sizes before minify)
-  177.1 kB  lodash/lodash.js  cjs
+  181.3 kB  lodash/lodash.js  cjs
 
 why it is kept
-  ● cjs — 1 of 1 kept modules are CommonJS, which limits tree-shaking
+  ● cjs — the kept module is CommonJS, which limits tree-shaking
       fix: look for an ESM build or an ESM alternative
   ◐ no-sideeffects-flag (likely) — lodash/package.json has no "sideEffects" field,
     so bundlers keep every imported module whole
       fix: if the measured saving below is large, ask upstream to add "sideEffects": false
 
 measured by rebuilding
-  without lodash: bundle shrinks 25.1 kB gzip (69.5 kB raw)
+  without lodash: bundle shrinks 25.7 kB gzip (71.2 kB raw)
       upper bound: a replacement would add its own weight back
-  as side-effect free: n/a for CommonJS (the flag only works on ESM)
+  as side-effect free
+      n/a for CommonJS require chains
 ```
 
 When there is nothing to blame, it says so. The same command against a well-packaged dependency:
@@ -35,7 +36,7 @@ why it is kept
   nothing suspicious — imported and used
 
 measured by rebuilding
-  without @sindresorhus/is: bundle shrinks 3.4 kB gzip (11.0 kB raw)
+  without @sindresorhus/is: bundle shrinks 3.5 kB gzip (11.2 kB raw)
   as side-effect free: no change
 ```
 
@@ -79,8 +80,8 @@ If the graph contains several copies of the package, the report lists each bundl
 | App | Stack | Result |
 |---|---|---|
 | [vitesse](https://github.com/antfu-collective/vitesse) | Vue, Vite 7, 13 plugins | traced a CJS nprogress, measured 1.7 kB gzip |
-| [vitesse-lite](https://github.com/antfu-collective/vitesse-lite) | Vue | vue-router: no cause to report, 12.5 kB gzip measured |
-| [eftb](https://github.com/shish/eftb) | React, TanStack Router, Vite 8.2 | react-dom: 4 CJS modules, 54.6 kB gzip measured |
+| [vitesse-lite](https://github.com/antfu-collective/vitesse-lite) | Vue | vue-router: no cause to report, 12.8 kB gzip measured |
+| [eftb](https://github.com/shish/eftb) | React, TanStack Router, Vite 8.2 | react-dom: 4 CJS modules, 55.8 kB gzip measured |
 
 `scripts/validate.sh <git-url> <package> [subdir]` runs the tool against any repo.
 
@@ -90,6 +91,8 @@ If the graph contains several copies of the package, the report lists each bundl
 - Analysis runs on why-kept's own Vite 8. For a Vite 7 project the result is a preview of that app under Vite 8, and legacy peer tooling (an old `sass`, for example) can fail the build.
 - CommonJS modules show no export-level data. Their exports resolve at runtime.
 - "without X" is an upper bound. If your code imports the package, removing it means replacing it, and the replacement has a size too.
+- Measurements need a package query. Path queries report causes and chains but skip the rebuild variants.
+- If your Vite config defines `rolldownOptions.external` or `treeshake` as functions, variant builds replace them (config merging cannot compose functions), which can skew the deltas.
 - Per-module sizes in the table are pre-minification and will not sum to the bundle total. The measured numbers are post-minify, post-gzip.
 
 ## Development

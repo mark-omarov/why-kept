@@ -1,6 +1,6 @@
 import type { Snapshot } from "./capture.ts";
 import type { Cause, ChainLink, ExportsDiff } from "./analyze.ts";
-import type { Delta } from "./counterfactual.ts";
+import { SIDE_EFFECT_FREE_LABEL, type Delta } from "./counterfactual.ts";
 import { shortId } from "./analyze.ts";
 
 export interface Report {
@@ -27,7 +27,7 @@ const yellow = paint("33");
 const mark = { high: "●", medium: "◐", low: "○" };
 
 export function reconcile(causes: Cause[], deltas: Delta[]): Cause[] {
-  const flag = deltas.find((d) => d.label === "as side-effect free");
+  const flag = deltas.find((d) => d.label === SIDE_EFFECT_FREE_LABEL);
   if (!flag || flag.gzip !== 0) return causes;
   return causes.map((c) =>
     c.kind === "no-sideeffects-flag"
@@ -106,7 +106,7 @@ export function render(r: Report, limit = 8): string {
     "",
     bold("measured by rebuilding"),
     ...r.deltas.flatMap((d) => [
-      Number.isNaN(d.gzip)
+      d.gzip === null || d.bytes === null
         ? dim(`  ${d.label}`)
         : d.gzip === 0
           ? `  ${d.label}: ${dim("no change")}`
@@ -122,5 +122,5 @@ function confidenceTag(confidence: "high" | "medium" | "low"): string {
 }
 
 function kb(n: number): string {
-  return n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} kB`;
+  return n < 1000 ? `${n} B` : `${(n / 1000).toFixed(1)} kB`;
 }

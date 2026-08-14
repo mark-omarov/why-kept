@@ -10,7 +10,7 @@ function mod(id: string, over: Partial<Mod> = {}): Mod {
     importedIds: [],
     exports: [],
     isEntry: false,
-    format: "esm",
+    format: "es",
     sideEffects: null,
     code: null,
     ...over,

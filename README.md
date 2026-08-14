@@ -63,6 +63,8 @@ If a package appears multiple times in the graph (any depth), the report lists e
 
 ## Known limits
 
+- The analysis builds with why-kept's own Vite 8. Exact for Vite 8 projects; for older Vite projects it is a "your bundle under Vite 8" preview, and legacy peer tooling (e.g. old `sass`) can fail the build.
+- Projects whose build is orchestrated by a framework CLI with virtual entries (Slidev, Nuxt-style setups) are out of scope — the project must be buildable by plain `vite build`.
 - `renderedLength` is pre-minification; per-module sizes will not sum to the final bundle size. The measured deltas are post-minify and post-gzip — trust those.
 - `sideEffects`-flag analysis reads the resolved value; a plugin overriding side effects at resolve/load time can blur package.json attribution.
 - Export-level kept/removed data is only available for ESM modules; CJS exports resolve at runtime.

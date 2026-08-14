@@ -14,8 +14,8 @@ why-kept lodash — 1 module kept, 177.1 kB rendered (pre-minify); bundle: 70.2 
 import chain
   index.html → main.js → lodash/lodash.js
 
-exports (kept / removed by tree-shaking)
-  lodash/lodash.js  177.1 kB  cjs — export-level data n/a
+kept modules (largest first)
+  lodash/lodash.js  177.1 kB  cjs
 
 why it is kept
   ● [high] cjs — 1 of 1 kept modules are CommonJS; Rolldown tree-shakes CJS exports, but interop retains more than ESM would
@@ -40,13 +40,14 @@ What it deliberately does **not** do: guess statement-level purity decisions. Ro
 ## Usage
 
 ```sh
-why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--json] [--skip-measure]
+why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--limit <n>] [--json] [--skip-measure]
 ```
 
 - `<package-or-path>` — an npm package name (`lodash`, `@scope/pkg`) or a path substring of a module id
 - `--root` — project root containing your Vite config (default: cwd)
 - `--env` — which Vite environment to analyze (default: `client`; e.g. `--env ssr`)
 - `--exclude-plugin` — strip a named plugin from the analysis builds (repeatable); use for plugins with build side effects like sourcemap uploaders
+- `--limit` — max rows in the kept-modules table (default 8)
 - `--json` — machine-readable report
 - `--skip-measure` — skip the variant rebuilds
 

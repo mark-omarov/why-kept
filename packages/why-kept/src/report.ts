@@ -63,7 +63,7 @@ export function buildReport(
   };
 }
 
-export function render(r: Report): string {
+export function render(r: Report, limit = 8): string {
   const plural = r.keptModules === 1 ? "module" : "modules";
   const envTag = r.env === "client" ? "" : ` ${dim(`[env: ${r.env}]`)}`;
   const lines = [
@@ -73,18 +73,24 @@ export function render(r: Report): string {
     bold("import chain"),
     `  ${r.chain.map((id) => shortId(id, r.root)).join(dim(" → "))}`,
     "",
-    bold("exports (kept / removed by tree-shaking)"),
+    bold("kept modules (largest first)"),
     ...r.exports
-      .slice(0, 8)
+      .slice(0, limit)
       .map(
         (e) =>
           `  ${shortId(e.id, r.root)}  ${dim(kb(e.bytes))}  ${
             e.format === "cjs"
-              ? dim("cjs — export-level data n/a")
-              : `kept ${e.kept.length}, removed ${e.removed.length}`
+              ? dim("cjs")
+              : `kept ${e.kept.length} exports, tree-shaking removed ${e.removed.length}`
           }`,
       ),
-    ...(r.exports.length > 8 ? [dim(`  … ${r.exports.length - 8} more`)] : []),
+    ...(r.exports.length > limit
+      ? [
+          dim(
+            `  … ${r.exports.length - limit} more (--limit ${r.exports.length} or --json for all)`,
+          ),
+        ]
+      : []),
     "",
     bold("why it is kept"),
     ...r.causes.flatMap((c) => [

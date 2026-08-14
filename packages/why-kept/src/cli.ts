@@ -11,6 +11,7 @@ const { values, positionals } = parseArgs({
     root: { type: "string", default: "." },
     env: { type: "string", default: "client" },
     "exclude-plugin": { type: "string", multiple: true, default: [] },
+    limit: { type: "string", default: "8" },
     json: { type: "boolean", default: false },
     "skip-measure": { type: "boolean", default: false },
   },
@@ -20,7 +21,7 @@ const { values, positionals } = parseArgs({
 const query = positionals[0];
 if (!query) {
   console.error(
-    "usage: why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--json] [--skip-measure]",
+    "usage: why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--limit <n>] [--json] [--skip-measure]",
   );
   process.exit(1);
 }
@@ -66,7 +67,7 @@ try {
     deltas,
   );
 
-  console.log(values.json ? JSON.stringify(report, null, 2) : render(report));
+  console.log(values.json ? JSON.stringify(report, null, 2) : render(report, Number(values.limit)));
 } catch (error) {
   console.error(`build failed: ${error instanceof Error ? error.message : error}`);
   process.exit(1);

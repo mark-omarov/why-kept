@@ -43,32 +43,34 @@ export async function capture(
     name: "why-kept",
     buildEnd() {
       for (const id of this.getModuleIds()) {
-        const m = this.getModuleInfo(id);
-        if (!m) continue;
+        const moduleInfo = this.getModuleInfo(id);
+        if (!moduleInfo) continue;
         snap.modules.set(id, {
           id,
-          importers: [...m.importers],
-          dynamicImporters: [...m.dynamicImporters],
-          importedIds: [...m.importedIds],
-          exports: [...m.exports],
-          isEntry: m.isEntry,
-          format: m.inputFormat ?? "unknown",
-          sideEffects: m.moduleSideEffects,
-          code: [...m.importedIds, ...m.dynamicallyImportedIds].some(keepCode) ? m.code : null,
+          importers: [...moduleInfo.importers],
+          dynamicImporters: [...moduleInfo.dynamicImporters],
+          importedIds: [...moduleInfo.importedIds],
+          exports: [...moduleInfo.exports],
+          isEntry: moduleInfo.isEntry,
+          format: moduleInfo.inputFormat ?? "unknown",
+          sideEffects: moduleInfo.moduleSideEffects,
+          code: [...moduleInfo.importedIds, ...moduleInfo.dynamicallyImportedIds].some(keepCode)
+            ? moduleInfo.code
+            : null,
         });
       }
     },
     generateBundle(_options, bundle) {
-      for (const out of Object.values(bundle)) {
-        const content = out.type === "chunk" ? out.code : out.source;
+      for (const output of Object.values(bundle)) {
+        const content = output.type === "chunk" ? output.code : output.source;
         snap.bytes += Buffer.byteLength(content);
         snap.gzip += gzipSync(content).length;
-        if (out.type !== "chunk") continue;
-        for (const [id, m] of Object.entries(out.modules)) {
+        if (output.type !== "chunk") continue;
+        for (const [id, module] of Object.entries(output.modules)) {
           const prev = snap.rendered.get(id) ?? { exports: [], bytes: 0 };
           snap.rendered.set(id, {
-            exports: [...new Set([...prev.exports, ...m.renderedExports])],
-            bytes: prev.bytes + m.renderedLength,
+            exports: [...new Set([...prev.exports, ...module.renderedExports])],
+            bytes: prev.bytes + module.renderedLength,
           });
         }
       }
@@ -98,8 +100,8 @@ async function flatten(option: unknown): Promise<unknown[]> {
   return [value];
 }
 
-function pluginName(p: unknown): string | undefined {
-  return p && typeof p === "object" && "name" in p ? String(p.name) : undefined;
+function pluginName(plugin: unknown): string | undefined {
+  return plugin && typeof plugin === "object" && "name" in plugin ? String(plugin.name) : undefined;
 }
 
 export async function loadConfigWithout(root: string, exclude: string[]): Promise<InlineConfig> {
@@ -111,7 +113,7 @@ export async function loadConfigWithout(root: string, exclude: string[]): Promis
   );
   if (!loaded) return {};
   const all = await flatten(loaded.config.plugins);
-  const plugins = all.filter((p) => !exclude.includes(pluginName(p) ?? "")) as Plugin[];
+  const plugins = all.filter((plugin) => !exclude.includes(pluginName(plugin) ?? "")) as Plugin[];
   const { root: _ignored, ...config } = loaded.config;
   return { ...config, configFile: false, plugins };
 }

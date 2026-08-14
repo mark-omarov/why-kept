@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { isAbsolute, resolve } from "node:path";
+
 import { capture, loadConfigWithout } from "./capture.ts";
 import { chainToEntry, classify, exportsDiff, findTargets, versionSummary } from "./analyze.ts";
 import { measure } from "./counterfactual.ts";
@@ -18,7 +19,9 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
-const query = positionals[0];
+const { env, json, "exclude-plugin": excludePlugins, "skip-measure": skipMeasure } = values;
+
+const [query] = positionals;
 if (!query) {
   console.error(
     "usage: why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--limit <n>] [--json] [--skip-measure]",
@@ -35,21 +38,23 @@ const progress = (msg: string) => {
 };
 
 const exitEarly = (result: string, message: string) => {
-  console.log(values.json ? JSON.stringify({ query, result }) : message);
+  console.log(json ? JSON.stringify({ query, result }) : message);
   process.exit(0);
 };
 
 try {
-  const baseOverrides = await loadConfigWithout(root, values["exclude-plugin"]);
-  progress(`building (${values.env})…`);
-  const snap = await capture(root, matchesTarget, baseOverrides, values.env);
+  const baseOverrides = await loadConfigWithout(root, excludePlugins);
+  progress(`building (${env})…`);
+  const snap = await capture(root, matchesTarget, baseOverrides, env);
   const targets = findTargets(snap, query);
   if (targets.length === 0) {
     exitEarly("not-in-graph", `"${query}" is not in the module graph — nothing was kept.`);
   }
-  const kept = targets.filter((t) => snap.rendered.has(t.id));
+  const kept = targets.filter((target) => snap.rendered.has(target.id));
   if (kept.length === 0) {
-    const external = targets.some((t) => !isAbsolute(t.id) && !t.id.startsWith("\0"));
+    const external = targets.some(
+      (target) => !isAbsolute(target.id) && !target.id.startsWith("\0"),
+    );
     if (external) {
       exitEarly(
         "external",
@@ -62,23 +67,23 @@ try {
     );
   }
 
-  const largest = kept.reduce((a, b) =>
-    (snap.rendered.get(b.id)?.bytes ?? 0) > (snap.rendered.get(a.id)?.bytes ?? 0) ? b : a,
+  const largest = kept.reduce((max, target) =>
+    (snap.rendered.get(target.id)?.bytes ?? 0) > (snap.rendered.get(max.id)?.bytes ?? 0)
+      ? target
+      : max,
   );
   const chain = chainToEntry(snap, largest.id);
-  const target = {
-    isPackage: kept.some((t) => t.id.includes(`/node_modules/${query}/`)),
-    hasEsm: kept.some((t) => t.format !== "cjs"),
+  const measured = {
+    isPackage: kept.some((target) => target.id.includes(`/node_modules/${query}/`)),
+    hasEsm: kept.some((target) => target.format !== "cjs"),
   };
-  if (!values["skip-measure"]) progress("measuring with variant rebuilds…");
-  const deltas = values["skip-measure"]
-    ? []
-    : await measure(root, query, snap, target, baseOverrides, values.env);
+  if (!skipMeasure) progress("measuring with variant rebuilds…");
+  const deltas = skipMeasure ? [] : await measure(root, query, snap, measured, baseOverrides, env);
   const causes = reconcile(await classify(snap, targets, query, root), deltas);
   const report = buildReport(
     query,
     root,
-    values.env,
+    env,
     versionSummary(kept),
     snap,
     chain,
@@ -89,7 +94,7 @@ try {
 
   const limit = Number(values.limit);
   console.log(
-    values.json
+    json
       ? JSON.stringify(report, null, 2)
       : render(report, Number.isFinite(limit) && limit > 0 ? limit : 8),
   );

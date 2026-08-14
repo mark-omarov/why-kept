@@ -21,8 +21,8 @@ export interface ExportsDiff {
 export function findTargets(snap: Snapshot, query: string): Mod[] {
   const asPackage = `/node_modules/${query}/`;
   const all = [...snap.modules.values()];
-  const hits = all.filter((m) => m.id.includes(asPackage));
-  return hits.length > 0 ? hits : all.filter((m) => m.id.includes(query));
+  const hits = all.filter((mod) => mod.id.includes(asPackage));
+  return hits.length > 0 ? hits : all.filter((mod) => mod.id.includes(query));
 }
 
 export interface ChainLink {
@@ -34,17 +34,19 @@ export function chainToEntry(snap: Snapshot, from: string): ChainLink[] {
   const prev = new Map<string, string>([[from, ""]]);
   const queue = [from];
   for (const id of queue) {
-    const m = snap.modules.get(id);
-    if (!m) continue;
-    if (m.isEntry) {
+    const mod = snap.modules.get(id);
+    if (!mod) continue;
+    if (mod.isEntry) {
       const ids: string[] = [];
       for (let cur: string | undefined = id; cur; cur = prev.get(cur)) ids.push(cur);
-      return ids.map((link, i) => ({
-        id: link,
-        dynamic: i > 0 && (snap.modules.get(link)?.dynamicImporters.includes(ids[i - 1]) ?? false),
+      return ids.map((moduleId, index) => ({
+        id: moduleId,
+        dynamic:
+          index > 0 &&
+          (snap.modules.get(moduleId)?.dynamicImporters.includes(ids[index - 1]) ?? false),
       }));
     }
-    for (const importer of [...m.importers, ...m.dynamicImporters]) {
+    for (const importer of [...mod.importers, ...mod.dynamicImporters]) {
       if (!prev.has(importer)) {
         prev.set(importer, id);
         queue.push(importer);
@@ -56,15 +58,15 @@ export function chainToEntry(snap: Snapshot, from: string): ChainLink[] {
 
 export function exportsDiff(snap: Snapshot, targets: Mod[]): ExportsDiff[] {
   return targets
-    .filter((t) => snap.rendered.has(t.id))
-    .map((t) => {
-      const r = snap.rendered.get(t.id)!;
+    .filter((target) => snap.rendered.has(target.id))
+    .map((target) => {
+      const rendered = snap.rendered.get(target.id)!;
       return {
-        id: t.id,
-        format: t.format,
-        kept: r.exports,
-        removed: t.exports.filter((e) => !r.exports.includes(e)),
-        bytes: r.bytes,
+        id: target.id,
+        format: target.format,
+        kept: rendered.exports,
+        removed: target.exports.filter((name) => !rendered.exports.includes(name)),
+        bytes: rendered.bytes,
       };
     })
     .sort((a, b) => b.bytes - a.bytes);
@@ -78,9 +80,9 @@ export async function classify(
 ): Promise<Cause[]> {
   await init;
   const causes: Cause[] = [];
-  const kept = targets.filter((t) => snap.rendered.has(t.id));
+  const kept = targets.filter((target) => snap.rendered.has(target.id));
 
-  const cjs = kept.filter((t) => t.format === "cjs");
+  const cjs = kept.filter((target) => target.format === "cjs");
   if (cjs.length > 0) {
     causes.push({
       kind: "cjs",
@@ -92,8 +94,13 @@ export async function classify(
 
   causes.push(...scanImportStatements(snap, query, root));
 
-  const pkg = kept.length > 0 ? nearestPackageJson(kept[0].id) : null;
-  if (pkg && pkg.json.sideEffects === undefined && kept.some((t) => t.sideEffects !== false)) {
+  const [firstKept] = kept;
+  const pkg = firstKept ? nearestPackageJson(firstKept.id) : null;
+  if (
+    pkg &&
+    pkg.json.sideEffects === undefined &&
+    kept.some((target) => target.sideEffects !== false)
+  ) {
     causes.push({
       kind: "no-sideeffects-flag",
       confidence: "medium",
@@ -107,29 +114,29 @@ export async function classify(
 
 function scanImportStatements(snap: Snapshot, query: string, root: string): Cause[] {
   const causes: Cause[] = [];
-  for (const m of snap.modules.values()) {
-    if (!m.code) continue;
+  for (const mod of snap.modules.values()) {
+    if (!mod.code) continue;
     let imports;
     try {
-      [imports] = parse(m.code);
+      [imports] = parse(mod.code);
     } catch {
       continue;
     }
-    for (const s of imports) {
-      if (s.d !== -1 || !s.n || !matchesQuery(s.n, query)) continue;
-      const statement = m.code.slice(s.ss, s.se);
+    for (const spec of imports) {
+      if (spec.d !== -1 || !spec.n || !matchesQuery(spec.n, query)) continue;
+      const statement = mod.code.slice(spec.ss, spec.se);
       if (/^import\s*['"]/.test(statement)) {
         causes.push({
           kind: "side-effect-import",
           confidence: "high",
-          detail: `${shortId(m.id, root)}: \`${statement}\``,
+          detail: `${shortId(mod.id, root)}: \`${statement}\``,
           fix: "a bare import keeps the whole module for its side effects — drop it, or import something from it",
         });
       } else if (/^export\s*\*/.test(statement)) {
         causes.push({
           kind: "export-star",
           confidence: "low",
-          detail: `${shortId(m.id, root)}: \`${statement}\` re-exports everything, which can defeat export-level tree-shaking`,
+          detail: `${shortId(mod.id, root)}: \`${statement}\` re-exports everything, which can defeat export-level tree-shaking`,
           fix: "re-export named bindings instead of `export *`",
         });
       }
@@ -180,24 +187,24 @@ function nearestPackageJson(id: string): { path: string; json: PkgJson } | null 
 
 export function versionSummary(targets: Mod[]): string | null {
   const counts = new Map<string, number>();
-  for (const t of targets) {
-    const v = nearestPackageJson(t.id)?.json.version ?? "?";
-    counts.set(v, (counts.get(v) ?? 0) + 1);
+  for (const target of targets) {
+    const version = nearestPackageJson(target.id)?.json.version ?? "?";
+    counts.set(version, (counts.get(version) ?? 0) + 1);
   }
   if (counts.size < 2) return null;
-  const list = [...counts].map(([v, n]) => `${v} (${n} modules)`).join(", ");
+  const list = [...counts].map(([version, count]) => `${version} (${count} modules)`).join(", ");
   return `${list} — multiple copies bundled, dedupe opportunity`;
 }
 
 function dedupe(causes: Cause[]): Cause[] {
   const seen = new Set<string>();
-  return causes.filter((c) => {
-    const key = c.kind + c.detail;
+  return causes.filter((cause) => {
+    const key = cause.kind + cause.detail;
     return seen.has(key) ? false : (seen.add(key), true);
   });
 }
 
 export function shortId(id: string, root = process.cwd()): string {
-  const i = id.lastIndexOf("node_modules/");
-  return i === -1 ? id.replace(`${root}/`, "") : id.slice(i + "node_modules/".length);
+  const index = id.lastIndexOf("node_modules/");
+  return index === -1 ? id.replace(`${root}/`, "") : id.slice(index + "node_modules/".length);
 }

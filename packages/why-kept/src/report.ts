@@ -19,20 +19,20 @@ export interface Report {
 }
 
 const tty = process.stdout.isTTY && !process.env.NO_COLOR;
-const paint = (code: string) => (s: string) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s);
+const paint = (code: string) => (text: string) => (tty ? `\x1b[${code}m${text}\x1b[0m` : text);
 const bold = paint("1");
 const dim = paint("2");
 const green = paint("32");
 const yellow = paint("33");
-const mark = { high: "●", medium: "◐", low: "○" };
+const marks = { high: "●", medium: "◐", low: "○" };
 
 export function reconcile(causes: Cause[], deltas: Delta[]): Cause[] {
-  const flag = deltas.find((d) => d.label === SIDE_EFFECT_FREE_LABEL);
+  const flag = deltas.find((delta) => delta.label === SIDE_EFFECT_FREE_LABEL);
   if (!flag || flag.gzip !== 0) return causes;
-  return causes.map((c) =>
-    c.kind === "no-sideeffects-flag"
-      ? { ...c, detail: `${c.detail} (measured below: adding the flag saves nothing here)` }
-      : c,
+  return causes.map((cause) =>
+    cause.kind === "no-sideeffects-flag"
+      ? { ...cause, detail: `${cause.detail} (measured below: adding the flag saves nothing here)` }
+      : cause,
   );
 }
 
@@ -53,7 +53,7 @@ export function buildReport(
     env,
     versions,
     keptModules: exports.length,
-    keptBytes: exports.reduce((sum, e) => sum + e.bytes, 0),
+    keptBytes: exports.reduce((sum, row) => sum + row.bytes, 0),
     totalBytes: snap.bytes,
     totalGzip: snap.gzip,
     chain,
@@ -63,55 +63,56 @@ export function buildReport(
   };
 }
 
-export function render(r: Report, limit = 8): string {
-  const plural = r.keptModules === 1 ? "module" : "modules";
-  const envTag = r.env === "client" ? "" : ` ${dim(`[env: ${r.env}]`)}`;
+export function render(report: Report, limit = 8): string {
+  const plural = report.keptModules === 1 ? "module" : "modules";
+  const envTag = report.env === "client" ? "" : ` ${dim(`[env: ${report.env}]`)}`;
+  const rows = report.exports.slice(0, limit);
+  const width = Math.max(...rows.map((row) => kb(row.bytes).length));
   const lines = [
-    `${bold(`why-kept ${r.query}`)}${envTag} — ${r.keptModules} ${plural} kept · bundle ${kb(r.totalBytes)} (${kb(r.totalGzip)} gzip)`,
-    ...(r.versions ? [`${bold("versions")} ${r.versions}`] : []),
+    `${bold(`why-kept ${report.query}`)}${envTag} — ${report.keptModules} ${plural} kept · bundle ${kb(report.totalBytes)} (${kb(report.totalGzip)} gzip)`,
+    ...(report.versions ? [`${bold("versions")} ${report.versions}`] : []),
     "",
     bold("import chain"),
-    `  ${r.chain
-      .map((l, i) => (i === 0 ? "" : dim(l.dynamic ? " ⇢ " : " → ")) + shortId(l.id, r.root))
+    `  ${report.chain
+      .map(
+        (link, index) =>
+          (index === 0 ? "" : dim(link.dynamic ? " ⇢ " : " → ")) + shortId(link.id, report.root),
+      )
       .join("")}`,
-    ...(r.chain.some((l) => l.dynamic) ? [dim("  ⇢ dynamic import")] : []),
+    ...(report.chain.some((link) => link.dynamic) ? [dim("  ⇢ dynamic import")] : []),
     "",
     bold(`kept modules ${dim("(largest first, sizes before minify)")}`),
-    ...(() => {
-      const rows = r.exports.slice(0, limit);
-      const width = Math.max(...rows.map((e) => kb(e.bytes).length));
-      return rows.map(
-        (e) =>
-          `  ${kb(e.bytes).padStart(width)}  ${shortId(e.id, r.root)}  ${
-            e.format === "cjs"
-              ? dim("cjs")
-              : dim(`kept ${e.kept.length} exports, removed ${e.removed.length}`)
-          }`,
-      );
-    })(),
-    ...(r.exports.length > limit
+    ...rows.map(
+      (row) =>
+        `  ${kb(row.bytes).padStart(width)}  ${shortId(row.id, report.root)}  ${
+          row.format === "cjs"
+            ? dim("cjs")
+            : dim(`kept ${row.kept.length} exports, removed ${row.removed.length}`)
+        }`,
+    ),
+    ...(report.exports.length > limit
       ? [
           dim(
-            `  … ${r.exports.length - limit} more (--limit ${r.exports.length} or --json for all)`,
+            `  … ${report.exports.length - limit} more (--limit ${report.exports.length} or --json for all)`,
           ),
         ]
       : []),
     "",
     bold("why it is kept"),
-    ...r.causes.flatMap((c) => [
-      `  ${yellow(mark[c.confidence])} ${bold(c.kind)}${confidenceTag(c.confidence)} — ${c.detail}`,
-      dim(`      fix: ${c.fix}`),
+    ...report.causes.flatMap((cause) => [
+      `  ${yellow(marks[cause.confidence])} ${bold(cause.kind)}${confidenceTag(cause.confidence)} — ${cause.detail}`,
+      dim(`      fix: ${cause.fix}`),
     ]),
-    ...(r.causes.length === 0 ? [dim("  nothing suspicious — imported and used")] : []),
+    ...(report.causes.length === 0 ? [dim("  nothing suspicious — imported and used")] : []),
     "",
     bold("measured by rebuilding"),
-    ...r.deltas.flatMap((d) => [
-      d.gzip === null || d.bytes === null
-        ? dim(`  ${d.label}`)
-        : d.gzip === 0
-          ? `  ${d.label}: ${dim("no change")}`
-          : `  ${d.label}: bundle shrinks ${green(`${kb(d.gzip)} gzip`)} ${dim(`(${kb(d.bytes)} raw)`)}`,
-      ...(d.note ? [dim(`      ${d.note}`)] : []),
+    ...report.deltas.flatMap((delta) => [
+      delta.gzip === null || delta.bytes === null
+        ? dim(`  ${delta.label}`)
+        : delta.gzip === 0
+          ? `  ${delta.label}: ${dim("no change")}`
+          : `  ${delta.label}: bundle shrinks ${green(`${kb(delta.gzip)} gzip`)} ${dim(`(${kb(delta.bytes)} raw)`)}`,
+      ...(delta.note ? [dim(`      ${delta.note}`)] : []),
     ]),
   ];
   return lines.join("\n");
@@ -121,6 +122,6 @@ function confidenceTag(confidence: "high" | "medium" | "low"): string {
   return confidence === "high" ? "" : dim(confidence === "medium" ? " (likely)" : " (possible)");
 }
 
-function kb(n: number): string {
-  return n < 1000 ? `${n} B` : `${(n / 1000).toFixed(1)} kB`;
+function kb(bytes: number): string {
+  return bytes < 1000 ? `${bytes} B` : `${(bytes / 1000).toFixed(1)} kB`;
 }

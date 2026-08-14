@@ -4,3 +4,4 @@ dist
 packages/why-kept/README.md
 packages/why-kept/LICENSE
 packages/rolldown-plugin-metafile/test/.tmp-*
+.DS_Store

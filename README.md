@@ -100,7 +100,7 @@ pnpm test
 pnpm build
 ```
 
-Node 24 runs the TypeScript directly, so the dev loop needs no build step:
+The published tool runs on Node 20.19+, same as Vite 8. Development wants Node 24 (`.nvmrc`), which runs the TypeScript directly, so the dev loop needs no build step:
 
 ```sh
 node packages/why-kept/src/cli.ts lodash --root fixtures/lodash-cjs --skip-measure

@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { resolve } from "node:path";
-import { capture } from "./capture.ts";
-import { chainToEntry, classify, exportsDiff, findTargets } from "./analyze.ts";
+import { isAbsolute, resolve } from "node:path";
+import { capture, loadConfigWithout } from "./capture.ts";
+import { chainToEntry, classify, exportsDiff, findTargets, versionSummary } from "./analyze.ts";
 import { measure } from "./counterfactual.ts";
-import { buildReport, render } from "./report.ts";
+import { buildReport, reconcile, render } from "./report.ts";
 
 const { values, positionals } = parseArgs({
   options: {
     root: { type: "string", default: "." },
+    env: { type: "string", default: "client" },
+    "exclude-plugin": { type: "string", multiple: true, default: [] },
     json: { type: "boolean", default: false },
     "skip-measure": { type: "boolean", default: false },
   },
@@ -17,15 +19,19 @@ const { values, positionals } = parseArgs({
 
 const query = positionals[0];
 if (!query) {
-  console.error("usage: why-kept <package-or-path> [--root <dir>] [--json] [--skip-measure]");
+  console.error(
+    "usage: why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--json] [--skip-measure]",
+  );
   process.exit(1);
 }
 
+process.env.WHY_KEPT = "1";
 const root = resolve(values.root);
 const matchesTarget = (id: string) => id.includes(`/node_modules/${query}/`) || id.includes(query);
 
 try {
-  const snap = await capture(root, matchesTarget);
+  const baseOverrides = await loadConfigWithout(root, values["exclude-plugin"]);
+  const snap = await capture(root, matchesTarget, baseOverrides, values.env);
   const targets = findTargets(snap, query);
   if (targets.length === 0) {
     console.log(`"${query}" is not in the module graph — nothing was kept.`);
@@ -33,15 +39,32 @@ try {
   }
   const kept = targets.filter((t) => snap.rendered.has(t.id));
   if (kept.length === 0) {
-    console.log(`"${query}" is in the module graph but fully tree-shaken out — nothing was kept.`);
+    const external = targets.some((t) => !isAbsolute(t.id) && !t.id.startsWith("\0"));
+    console.log(
+      external
+        ? `"${query}" is external in this build — imported at runtime, not bundled (typical for SSR environments).`
+        : `"${query}" is in the module graph but fully tree-shaken out — nothing was kept.`,
+    );
     process.exit(0);
   }
 
   const chain = chainToEntry(snap, kept[0].id);
-  const causes = await classify(snap, targets, query, root);
   const hasEsmTargets = kept.some((t) => t.format !== "cjs");
-  const deltas = values["skip-measure"] ? [] : await measure(root, query, snap, hasEsmTargets);
-  const report = buildReport(query, root, snap, chain, exportsDiff(snap, targets), causes, deltas);
+  const deltas = values["skip-measure"]
+    ? []
+    : await measure(root, query, snap, hasEsmTargets, baseOverrides, values.env);
+  const causes = reconcile(await classify(snap, targets, query, root), deltas);
+  const report = buildReport(
+    query,
+    root,
+    values.env,
+    versionSummary(kept),
+    snap,
+    chain,
+    exportsDiff(snap, targets),
+    causes,
+    deltas,
+  );
 
   console.log(values.json ? JSON.stringify(report, null, 2) : render(report));
 } catch (error) {

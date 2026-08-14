@@ -131,19 +131,41 @@ function matchesQuery(specifier: string, query: string): boolean {
   );
 }
 
-function nearestPackageJson(
-  id: string,
-): { path: string; json: { name?: string; sideEffects?: unknown } } | null {
-  let dir = dirname(id.split("?")[0]);
+interface PkgJson {
+  name?: string;
+  version?: string;
+  sideEffects?: unknown;
+}
+
+const pkgCache = new Map<string, { path: string; json: PkgJson } | null>();
+
+function nearestPackageJson(id: string): { path: string; json: PkgJson } | null {
+  const start = dirname(id.split("?")[0]);
+  if (pkgCache.has(start)) return pkgCache.get(start)!;
+  let dir = start;
+  let found: { path: string; json: PkgJson } | null = null;
   while (dir.includes("node_modules") && dir !== dirname(dir)) {
     const path = join(dir, "package.json");
     try {
-      return { path, json: JSON.parse(readFileSync(path, "utf8")) };
+      found = { path, json: JSON.parse(readFileSync(path, "utf8")) };
+      break;
     } catch {
       dir = dirname(dir);
     }
   }
-  return null;
+  pkgCache.set(start, found);
+  return found;
+}
+
+export function versionSummary(targets: Mod[]): string | null {
+  const counts = new Map<string, number>();
+  for (const t of targets) {
+    const v = nearestPackageJson(t.id)?.json.version ?? "?";
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  if (counts.size < 2) return null;
+  const list = [...counts].map(([v, n]) => `${v} (${n} modules)`).join(", ");
+  return `${list} — multiple copies bundled, dedupe opportunity`;
 }
 
 function dedupe(causes: Cause[]): Cause[] {

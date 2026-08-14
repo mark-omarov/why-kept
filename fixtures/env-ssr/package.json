@@ -1,0 +1,6 @@
+{
+  "name": "fixture-env-ssr",
+  "private": true,
+  "type": "module",
+  "dependencies": { "marked": "^15.0.0" }
+}

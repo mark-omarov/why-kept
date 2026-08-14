@@ -1,0 +1,5 @@
+{
+  "name": "fixture-excluded-plugin",
+  "private": true,
+  "type": "module"
+}

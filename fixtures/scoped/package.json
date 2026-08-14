@@ -1,0 +1,6 @@
+{
+  "name": "fixture-scoped",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@sindresorhus/is": "^8.0.0" }
+}

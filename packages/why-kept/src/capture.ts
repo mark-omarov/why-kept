@@ -1,5 +1,11 @@
 import { gzipSync } from "node:zlib";
-import { build, mergeConfig, type InlineConfig, type Plugin } from "vite";
+import {
+  createBuilder,
+  loadConfigFromFile,
+  mergeConfig,
+  type InlineConfig,
+  type Plugin,
+} from "vite";
 
 export interface Mod {
   id: string;
@@ -29,6 +35,7 @@ export async function capture(
   root: string,
   keepCode: (id: string) => boolean,
   overrides: InlineConfig = {},
+  env = "client",
 ): Promise<Snapshot> {
   const snap: Snapshot = { modules: new Map(), rendered: new Map(), bytes: 0, gzip: 0 };
 
@@ -74,6 +81,37 @@ export async function capture(
     build: { write: false },
     plugins: [plugin],
   };
-  await build(mergeConfig(base, overrides));
+  const builder = await createBuilder(mergeConfig(base, overrides));
+  const environment = builder.environments[env];
+  if (!environment) {
+    throw new Error(
+      `environment "${env}" not found; available: ${Object.keys(builder.environments).join(", ")}`,
+    );
+  }
+  await builder.build(environment);
   return snap;
+}
+
+async function flatten(option: unknown): Promise<unknown[]> {
+  const value = await option;
+  if (Array.isArray(value)) return (await Promise.all(value.map(flatten))).flat();
+  return [value];
+}
+
+function pluginName(p: unknown): string | undefined {
+  return p && typeof p === "object" && "name" in p ? String(p.name) : undefined;
+}
+
+export async function loadConfigWithout(root: string, exclude: string[]): Promise<InlineConfig> {
+  if (exclude.length === 0) return {};
+  const loaded = await loadConfigFromFile(
+    { command: "build", mode: "production" },
+    undefined,
+    root,
+  );
+  if (!loaded) return {};
+  const all = await flatten(loaded.config.plugins);
+  const plugins = all.filter((p) => !exclude.includes(pluginName(p) ?? "")) as Plugin[];
+  const { root: _ignored, ...config } = loaded.config;
+  return { ...config, configFile: false, plugins };
 }

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
-import { capture } from "../src/capture.ts";
+import { capture, loadConfigWithout } from "../src/capture.ts";
 import { chainToEntry, classify, findTargets } from "../src/analyze.ts";
 import { measure } from "../src/counterfactual.ts";
 
@@ -26,7 +26,7 @@ describe("lodash (CommonJS)", () => {
     expect(snap.modules.get(chain[0])?.isEntry).toBe(true);
 
     const deltas = await measure(root, "lodash", snap, false);
-    const removal = deltas.find((d) => d.label === "if removed entirely");
+    const removal = deltas.find((d) => d.label === "cost of presence");
     expect(removal!.gzip).toBeGreaterThan(1000);
   });
 });
@@ -53,5 +53,56 @@ describe("marked (no sideEffects flag)", () => {
 
     const causes = await classify(snap, targets, "marked");
     expect(causes.some((c) => c.kind === "no-sideeffects-flag")).toBe(true);
+  });
+});
+
+describe("dynamic import", () => {
+  test("captures split chunks and crosses the dynamic boundary", { timeout: 120_000 }, async () => {
+    const snap = await capture(fixture("dynamic"), matches("marked"));
+    const kept = findTargets(snap, "marked").filter((t) => snap.rendered.has(t.id));
+    expect(kept.length).toBeGreaterThan(0);
+
+    const chain = chainToEntry(snap, kept[0].id);
+    expect(snap.modules.get(chain[0])?.isEntry).toBe(true);
+  });
+});
+
+describe("scoped package", () => {
+  test("matches @scope/name queries", { timeout: 120_000 }, async () => {
+    const snap = await capture(fixture("scoped"), matches("@sindresorhus/is"));
+    const kept = findTargets(snap, "@sindresorhus/is").filter((t) => snap.rendered.has(t.id));
+    expect(kept.length).toBeGreaterThan(0);
+  });
+});
+
+describe("environments", () => {
+  test("client build excludes ssr-only dependencies", { timeout: 120_000 }, async () => {
+    const snap = await capture(fixture("env-ssr"), matches("marked"), {}, "client");
+    expect(findTargets(snap, "marked")).toHaveLength(0);
+  });
+
+  test("--env ssr sees marked as externalized, not bundled", { timeout: 120_000 }, async () => {
+    const snap = await capture(fixture("env-ssr"), matches("marked"), {}, "ssr");
+    const targets = findTargets(snap, "marked");
+    expect(targets.length).toBeGreaterThan(0);
+    expect(targets.every((t) => !snap.rendered.has(t.id))).toBe(true);
+    expect(targets.some((t) => t.id === "marked")).toBe(true);
+  });
+
+  test("unknown environment fails with the available list", { timeout: 120_000 }, async () => {
+    await expect(capture(fixture("env-ssr"), matches("marked"), {}, "edge")).rejects.toThrow(
+      /available: client, ssr/,
+    );
+  });
+});
+
+describe("--exclude-plugin", () => {
+  test("strips a named plugin from the loaded config", { timeout: 120_000 }, async () => {
+    const root = fixture("excluded-plugin");
+    await expect(capture(root, () => false)).rejects.toThrow(/boom plugin ran/);
+
+    const overrides = await loadConfigWithout(root, ["boom"]);
+    const snap = await capture(root, () => false, overrides);
+    expect(snap.bytes).toBeGreaterThan(0);
   });
 });

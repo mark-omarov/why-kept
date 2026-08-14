@@ -1,10 +1,11 @@
-import type { InlineConfig } from "vite";
+import { mergeConfig, type InlineConfig } from "vite";
 import { capture, type Snapshot } from "./capture.ts";
 
 export interface Delta {
   label: string;
   bytes: number;
   gzip: number;
+  note?: string;
 }
 
 const keepNothing = () => false;
@@ -14,11 +15,14 @@ export async function measure(
   query: string,
   base: Snapshot,
   hasEsmTargets: boolean,
+  baseOverrides: InlineConfig = {},
+  env = "client",
 ): Promise<Delta[]> {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const variants: Array<[string, InlineConfig]> = [
+  const variants: Array<[string, string | undefined, InlineConfig]> = [
     [
-      "if removed entirely",
+      "cost of presence",
+      "upper bound of savings — a replacement would add its own weight",
       {
         build: {
           rolldownOptions: {
@@ -31,6 +35,7 @@ export async function measure(
   if (hasEsmTargets) {
     variants.push([
       "if marked side-effect free",
+      undefined,
       {
         build: {
           rolldownOptions: {
@@ -46,10 +51,15 @@ export async function measure(
   }
 
   const deltas: Delta[] = [];
-  for (const [label, overrides] of variants) {
+  for (const [label, note, overrides] of variants) {
     try {
-      const variant = await capture(root, keepNothing, overrides);
-      deltas.push({ label, bytes: base.bytes - variant.bytes, gzip: base.gzip - variant.gzip });
+      const variant = await capture(root, keepNothing, mergeConfig(baseOverrides, overrides), env);
+      deltas.push({
+        label,
+        note,
+        bytes: base.bytes - variant.bytes,
+        gzip: base.gzip - variant.gzip,
+      });
     } catch {
       deltas.push({
         label: `${label} (variant build failed)`,

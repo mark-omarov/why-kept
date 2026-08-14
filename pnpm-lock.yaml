@@ -15,6 +15,20 @@ importers:
         specifier: ^1.78.0
         version: 1.78.0
 
+  fixtures/dynamic:
+    dependencies:
+      marked:
+        specifier: ^15.0.0
+        version: 15.0.12
+
+  fixtures/env-ssr:
+    dependencies:
+      marked:
+        specifier: ^15.0.0
+        version: 15.0.12
+
+  fixtures/excluded-plugin: {}
+
   fixtures/lodash-cjs:
     dependencies:
       lodash:
@@ -26,6 +40,12 @@ importers:
       marked:
         specifier: ^15.0.0
         version: 15.0.12
+
+  fixtures/scoped:
+    dependencies:
+      '@sindresorhus/is':
+        specifier: ^8.0.0
+        version: 8.1.0
 
   fixtures/side-effect:
     dependencies:
@@ -649,6 +669,10 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@sindresorhus/is@8.1.0':
+    resolution: {integrity: sha512-2SX/1jW6CIMAiebvVv5ZInoCEuWQmMyBoJXXGC6Vjakjp/fpxP5eHs7/V6WKuPEIbuK06+VpjH+vjLQhr98rDQ==}
+    engines: {node: '>=22'}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -1500,6 +1524,8 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@sindresorhus/is@8.1.0': {}
 
   '@standard-schema/spec@1.1.0': {}
 

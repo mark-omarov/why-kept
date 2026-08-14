@@ -24,7 +24,8 @@ why it is kept
       fix: check the measured "if marked side-effect free" delta below; if it is large, ask upstream for a "sideEffects" declaration
 
 measured (variant rebuilds, whole-bundle delta)
-  if removed entirely: −25.1 kB gzip (−69.5 kB raw)
+  cost of presence: −25.1 kB gzip (−69.5 kB raw)
+      upper bound of savings — a replacement would add its own weight
   if marked side-effect free: n/a — side-effect flags cannot drop CommonJS require chains
 ```
 
@@ -39,15 +40,25 @@ What it deliberately does **not** do: guess statement-level purity decisions. Ro
 ## Usage
 
 ```sh
-why-kept <package-or-path> [--root <dir>] [--json] [--skip-measure]
+why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--json] [--skip-measure]
 ```
 
 - `<package-or-path>` — an npm package name (`lodash`, `@scope/pkg`) or a path substring of a module id
 - `--root` — project root containing your Vite config (default: cwd)
+- `--env` — which Vite environment to analyze (default: `client`; e.g. `--env ssr`)
+- `--exclude-plugin` — strip a named plugin from the analysis builds (repeatable); use for plugins with build side effects like sourcemap uploaders
 - `--json` — machine-readable report
 - `--skip-measure` — skip the variant rebuilds
 
 Requires Vite ≥ 8 (Rolldown-based).
+
+Analysis builds run with `WHY_KEPT=1` in the environment, so a config can self-gate side-effecting plugins:
+
+```js
+plugins: [react(), !process.env.WHY_KEPT && sentryVitePlugin()]
+```
+
+If a package appears multiple times in the graph (any depth), the report lists each bundled version with module counts — a dedupe opportunity.
 
 ## Known limits
 

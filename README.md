@@ -1,41 +1,51 @@
 # why-kept
 
-Explains **why a module survived tree-shaking** in your Vite 8 (Rolldown) build — and what it actually costs, measured by rebuilding, not estimated.
-
-Bundle analyzers show you *what* is in your bundle. `why-kept` answers the next question: *why is it still there, and what would fixing it save?*
+`why-kept` is a command-line tool that explains why a package survived tree-shaking in a Vite 8 (Rolldown) build, and measures what it costs by rebuilding your app without it. Bundle analyzers like [Sonda](https://sonda.dev) or the official [Vite DevTools](https://devtools.vite.dev) show what is in the bundle. `why-kept` answers the follow-up question: why is it still there, and what would a fix save?
 
 ```sh
 npx why-kept lodash
 ```
 
 ```
-why-kept lodash — 1 module kept, 177.1 kB rendered (pre-minify); bundle: 70.2 kB minified, 25.6 kB gzip
+why-kept lodash — 1 module kept · bundle 70.2 kB (25.6 kB gzip)
 
 import chain
   index.html → main.js → lodash/lodash.js
 
-kept modules (largest first)
-  lodash/lodash.js  177.1 kB  cjs
+kept modules (largest first, sizes before minify)
+  177.1 kB  lodash/lodash.js  cjs
 
 why it is kept
-  ● [high] cjs — 1 of 1 kept modules are CommonJS; Rolldown tree-shakes CJS exports, but interop retains more than ESM would
-      fix: prefer an ESM build or an ESM alternative of this package
-  ◐ [medium] no-sideeffects-flag — lodash/package.json does not declare "sideEffects", so every imported module is assumed side-effectful and kept whole
-      fix: check the measured "if marked side-effect free" delta below; if it is large, ask upstream for a "sideEffects" declaration
+  ● cjs — 1 of 1 kept modules are CommonJS, which limits tree-shaking
+      fix: look for an ESM build or an ESM alternative
+  ◐ no-sideeffects-flag (likely) — lodash/package.json has no "sideEffects" field,
+    so bundlers keep every imported module whole
+      fix: if the measured saving below is large, ask upstream to add "sideEffects": false
 
-measured (variant rebuilds, whole-bundle delta)
-  cost of presence: −25.1 kB gzip (−69.5 kB raw)
-      upper bound of savings — a replacement would add its own weight
-  if marked side-effect free: n/a — side-effect flags cannot drop CommonJS require chains
+measured by rebuilding
+  without lodash: bundle shrinks 25.1 kB gzip (69.5 kB raw)
+      upper bound: a replacement would add its own weight back
+  as side-effect free: n/a for CommonJS (the flag only works on ESM)
+```
+
+When there is nothing to blame, it says so. The same command against a well-packaged dependency:
+
+```
+why it is kept
+  nothing suspicious — imported and used
+
+measured by rebuilding
+  without @sindresorhus/is: bundle shrinks 3.4 kB gzip (11.0 kB raw)
+  as side-effect free: no change
 ```
 
 ## How it works
 
-1. **Capture** — runs your Vite build in-memory (`build.write: false`) with a plugin that snapshots the module graph at `buildEnd` and per-module `renderedExports` / `renderedLength` from the output chunks. These are Rolldown's post-linking ground truth, not estimates.
-2. **Classify** — reports only evidence-backed causes, each labeled with confidence: CommonJS input format, bare side-effect imports (`import 'pkg'`), a missing `sideEffects` declaration, `export *` barrels.
-3. **Measure** — rebuilds variants (package externalized; package forced side-effect-free) and diffs real minified+gzip output. Rolldown is fast enough that counterfactual rebuilds cost seconds, which is what makes this design practical at all.
+1. Runs your Vite build in memory. Nothing is written to `dist/`. A plugin snapshots the module graph and Rolldown's per-module `renderedExports`, the post-linking record of what tree-shaking kept and removed.
+2. Reports a cause only when it can point at evidence: a CommonJS module format, a bare `import 'pkg'` statement it quotes back to you, a `sideEffects` field it read (or failed to find) in the package.json, an `export *` it found in the code.
+3. Rebuilds the app in variants, once without the package and once with it forced side-effect free, then diffs the real minified and gzipped output. Every byte number in the report comes from a build, not an estimate.
 
-What it deliberately does **not** do: guess statement-level purity decisions. Rolldown does not expose a tree-shaking decision trace ([rolldown#4145](https://github.com/rolldown/rolldown/issues/4145), [rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)), and inferring those reasons from outside the bundler produces confidently wrong answers. Everything this tool asserts is either read from the build or measured by rebuilding.
+Statement-level explanations ("this call survived because Rolldown could not prove it pure") are out of scope. Rolldown keeps no trace of those decisions ([rolldown#4145](https://github.com/rolldown/rolldown/issues/4145), [rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)), and guessing them from outside produces confident nonsense.
 
 ## Usage
 
@@ -43,38 +53,53 @@ What it deliberately does **not** do: guess statement-level purity decisions. Ro
 why-kept <package-or-path> [--root <dir>] [--env <name>] [--exclude-plugin <name>] [--limit <n>] [--json] [--skip-measure]
 ```
 
-- `<package-or-path>` — an npm package name (`lodash`, `@scope/pkg`) or a path substring of a module id
-- `--root` — project root containing your Vite config (default: cwd)
-- `--env` — which Vite environment to analyze (default: `client`; e.g. `--env ssr`)
-- `--exclude-plugin` — strip a named plugin from the analysis builds (repeatable); use for plugins with build side effects like sourcemap uploaders
-- `--limit` — max rows in the kept-modules table (default 8)
-- `--json` — machine-readable report
-- `--skip-measure` — skip the variant rebuilds
+- `<package-or-path>` matches an npm package name (`lodash`, `@scope/pkg`) or a substring of a module path
+- `--root` sets the project root containing your Vite config (default: current directory)
+- `--env` picks the Vite environment to analyze (default: `client`; try `--env ssr`)
+- `--exclude-plugin` strips a named plugin from the analysis builds, repeatable
+- `--limit` caps the kept-modules table (default: 8)
+- `--skip-measure` skips the rebuild measurements
 
-Requires Vite ≥ 8 (Rolldown-based).
+The same report is available as data, for scripts, CI, and agents:
 
-Analysis builds run with `WHY_KEPT=1` in the environment, so a config can self-gate side-effecting plugins:
+```sh
+why-kept lodash --json
+```
+
+Analysis builds run with `WHY_KEPT=1` in the environment. A config can use it to skip plugins that upload or deploy things on build:
 
 ```js
 plugins: [react(), !process.env.WHY_KEPT && sentryVitePlugin()]
 ```
 
-If a package appears multiple times in the graph (any depth), the report lists each bundled version with module counts — a dedupe opportunity.
+If the graph contains several copies of the package, the report lists each bundled version with its module count. That usually means a dedupe is available.
 
-## Known limits
+## Tested on real apps
 
-- The analysis builds with why-kept's own Vite 8. Exact for Vite 8 projects; for older Vite projects it is a "your bundle under Vite 8" preview, and legacy peer tooling (e.g. old `sass`) can fail the build.
-- Projects whose build is orchestrated by a framework CLI with virtual entries (Slidev, Nuxt-style setups) are out of scope — the project must be buildable by plain `vite build`.
-- `renderedLength` is pre-minification; per-module sizes will not sum to the final bundle size. The measured deltas are post-minify and post-gzip — trust those.
-- `sideEffects`-flag analysis reads the resolved value; a plugin overriding side effects at resolve/load time can blur package.json attribution.
-- Export-level kept/removed data is only available for ESM modules; CJS exports resolve at runtime.
+| App | Stack | Result |
+|---|---|---|
+| [vitesse](https://github.com/antfu-collective/vitesse) | Vue, Vite 7, 13 plugins | traced a CJS nprogress, measured 1.7 kB gzip |
+| [vitesse-lite](https://github.com/antfu-collective/vitesse-lite) | Vue | vue-router: no cause to report, 12.5 kB gzip measured |
+| [eftb](https://github.com/shish/eftb) | React, TanStack Router, Vite 8.2 | react-dom: 4 CJS modules, 54.6 kB gzip measured |
+
+`scripts/validate.sh <git-url> <package> [subdir]` runs the tool against any repo.
+
+## Limits
+
+- The project must build with plain `vite build`. Frameworks that orchestrate their own build with virtual entries (Slidev, Nuxt-style setups) are not supported.
+- Analysis runs on why-kept's own Vite 8. For a Vite 7 project the result is a preview of that app under Vite 8, and legacy peer tooling (an old `sass`, for example) can fail the build. Vite 5-era stacks generally will.
+- CommonJS modules show no export-level data. Their exports resolve at runtime.
+- "without X" is an upper bound. If your code imports the package, removing it means replacing it, and the replacement has a size too.
+- Per-module sizes in the table are pre-minification and will not sum to the bundle total. The measured numbers are post-minify, post-gzip.
 
 ## Development
 
-pnpm workspace: the tool lives in [`packages/why-kept`](packages/why-kept), real-package fixtures (lodash, core-js, marked) in [`fixtures/`](fixtures). Toolchain: tsdown, vitest, oxlint, oxfmt.
+pnpm workspace. The tool is [`packages/why-kept`](packages/why-kept), about 500 lines across five files. Fixtures in [`fixtures/`](fixtures) are real packages (lodash, core-js, marked, and friends) chosen because each one genuinely exhibits the failure mode its test asserts. Toolchain: tsdown, vitest, oxlint, oxfmt.
 
 ```sh
 pnpm install
 pnpm test
 pnpm build
 ```
+
+MIT

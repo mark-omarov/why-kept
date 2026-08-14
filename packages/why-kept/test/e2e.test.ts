@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { capture, loadConfigWithout } from "../src/capture.ts";
-import { chainToEntry, classify, findTargets } from "../src/analyze.ts";
+import { chainToEntry, classify, findTargets, versionSummary } from "../src/analyze.ts";
 import { measure, sideEffectFreePlugin } from "../src/counterfactual.ts";
 
 const fixture = (name: string) =>
@@ -70,6 +70,18 @@ describe("marked (no sideEffects flag)", () => {
 
     const causes = await classify(snap, targets, "marked");
     expect(causes.some((c) => c.kind === "no-sideeffects-flag")).toBe(true);
+  });
+});
+
+describe("duplicate versions", () => {
+  test("reports both bundled copies with versions", { timeout: 120_000 }, async () => {
+    const root = fixture("dup-versions");
+    const snap = await capture(root, matches("marked"));
+    const kept = findTargets(snap, "marked").filter((target) => snap.rendered.has(target.id));
+    const summary = versionSummary(kept);
+    expect(summary).toContain("dedupe opportunity");
+    expect(summary).toMatch(/15\./);
+    expect(summary).toMatch(/14\./);
   });
 });
 

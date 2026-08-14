@@ -47,7 +47,7 @@
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
-    "rolldown": ">=1.0.0"
+    "rolldown": ">=1.2.4"
   },
   "peerDependenciesMeta": {
     "rolldown": {

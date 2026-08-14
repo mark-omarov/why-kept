@@ -1,0 +1,9 @@
+{
+  "name": "fixture-dup-versions",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "marked": "^15.0.0",
+    "marked14": "npm:marked@^14.0.0"
+  }
+}

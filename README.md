@@ -45,7 +45,7 @@ measured by rebuilding
 2. Reports a cause only when it can point at evidence: a CommonJS module format, a bare `import 'pkg'` statement it quotes back to you, a `sideEffects` field it read (or failed to find) in the package.json, an `export *` it found in the code.
 3. Rebuilds the app in variants, once without the package and once with it forced side-effect free, then diffs the real minified and gzipped output. Every byte number in the report comes from a build, not an estimate.
 
-Statement-level explanations ("this call survived because Rolldown could not prove it pure") are out of scope. Rolldown keeps no trace of those decisions ([rolldown#4145](https://github.com/rolldown/rolldown/issues/4145), [rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)), and guessing them from outside produces confident nonsense.
+Statement-level explanations ("this call survived because Rolldown could not prove it pure") are out of scope. Rolldown keeps no trace of those decisions that I could find, and guessing them from outside produces confident nonsense.
 
 ## Usage
 
@@ -87,19 +87,23 @@ If the graph contains several copies of the package, the report lists each bundl
 ## Limits
 
 - The project must build with plain `vite build`. Frameworks that orchestrate their own build with virtual entries (Slidev, Nuxt-style setups) are not supported.
-- Analysis runs on why-kept's own Vite 8. For a Vite 7 project the result is a preview of that app under Vite 8, and legacy peer tooling (an old `sass`, for example) can fail the build. Vite 5-era stacks generally will.
+- Analysis runs on why-kept's own Vite 8. For a Vite 7 project the result is a preview of that app under Vite 8, and legacy peer tooling (an old `sass`, for example) can fail the build.
 - CommonJS modules show no export-level data. Their exports resolve at runtime.
 - "without X" is an upper bound. If your code imports the package, removing it means replacing it, and the replacement has a size too.
 - Per-module sizes in the table are pre-minification and will not sum to the bundle total. The measured numbers are post-minify, post-gzip.
 
 ## Development
 
-pnpm workspace. The tool is [`packages/why-kept`](packages/why-kept), about 500 lines across five files. Fixtures in [`fixtures/`](fixtures) are real packages (lodash, core-js, marked, and friends) chosen because each one genuinely exhibits the failure mode its test asserts. Toolchain: tsdown, vitest, oxlint, oxfmt.
-
 ```sh
 pnpm install
 pnpm test
 pnpm build
+```
+
+Node 24 runs the TypeScript directly, so the dev loop needs no build step:
+
+```sh
+node packages/why-kept/src/cli.ts lodash --root fixtures/lodash-cjs --skip-measure
 ```
 
 MIT

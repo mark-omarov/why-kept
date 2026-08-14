@@ -18,9 +18,12 @@ export interface Report {
   deltas: Delta[];
 }
 
-const tty = process.stdout.isTTY;
-const bold = (s: string) => (tty ? `\x1b[1m${s}\x1b[0m` : s);
-const dim = (s: string) => (tty ? `\x1b[2m${s}\x1b[0m` : s);
+const tty = process.stdout.isTTY && !process.env.NO_COLOR;
+const paint = (code: string) => (s: string) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s);
+const bold = paint("1");
+const dim = paint("2");
+const green = paint("32");
+const yellow = paint("33");
 const mark = { high: "●", medium: "◐", low: "○" };
 
 export function reconcile(causes: Cause[], deltas: Delta[]): Cause[] {
@@ -74,16 +77,18 @@ export function render(r: Report, limit = 8): string {
     `  ${r.chain.map((id) => shortId(id, r.root)).join(dim(" → "))}`,
     "",
     bold("kept modules (largest first)"),
-    ...r.exports
-      .slice(0, limit)
-      .map(
+    ...(() => {
+      const rows = r.exports.slice(0, limit);
+      const width = Math.max(...rows.map((e) => kb(e.bytes).length));
+      return rows.map(
         (e) =>
-          `  ${shortId(e.id, r.root)}  ${dim(kb(e.bytes))}  ${
+          `  ${kb(e.bytes).padStart(width)}  ${shortId(e.id, r.root)}  ${
             e.format === "cjs"
               ? dim("cjs")
-              : `kept ${e.kept.length} exports, tree-shaking removed ${e.removed.length}`
+              : dim(`kept ${e.kept.length} exports, removed ${e.removed.length}`)
           }`,
-      ),
+      );
+    })(),
     ...(r.exports.length > limit
       ? [
           dim(
@@ -94,7 +99,7 @@ export function render(r: Report, limit = 8): string {
     "",
     bold("why it is kept"),
     ...r.causes.flatMap((c) => [
-      `  ${mark[c.confidence]} [${c.confidence}] ${bold(c.kind)} — ${c.detail}`,
+      `  ${yellow(mark[c.confidence])} [${c.confidence}] ${bold(c.kind)} — ${c.detail}`,
       dim(`      fix: ${c.fix}`),
     ]),
     ...(r.causes.length === 0
@@ -105,7 +110,7 @@ export function render(r: Report, limit = 8): string {
     ...r.deltas.flatMap((d) => [
       Number.isNaN(d.gzip)
         ? dim(`  ${d.label}`)
-        : `  ${d.label}: ${bold(`−${kb(d.gzip)} gzip`)} ${dim(`(−${kb(d.bytes)} raw)`)}`,
+        : `  ${d.label}: ${green(`−${kb(d.gzip)} gzip`)} ${dim(`(−${kb(d.bytes)} raw)`)}`,
       ...(d.note ? [dim(`      ${d.note}`)] : []),
     ]),
   ];

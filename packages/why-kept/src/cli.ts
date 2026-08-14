@@ -30,8 +30,13 @@ process.env.WHY_KEPT = "1";
 const root = resolve(values.root);
 const matchesTarget = (id: string) => id.includes(`/node_modules/${query}/`) || id.includes(query);
 
+const progress = (msg: string) => {
+  if (process.stderr.isTTY) process.stderr.write(`\x1b[2m${msg}\x1b[0m\n`);
+};
+
 try {
   const baseOverrides = await loadConfigWithout(root, values["exclude-plugin"]);
+  progress(`building (${values.env})…`);
   const snap = await capture(root, matchesTarget, baseOverrides, values.env);
   const targets = findTargets(snap, query);
   if (targets.length === 0) {
@@ -51,6 +56,7 @@ try {
 
   const chain = chainToEntry(snap, kept[0].id);
   const hasEsmTargets = kept.some((t) => t.format !== "cjs");
+  if (!values["skip-measure"]) progress("measuring with variant rebuilds…");
   const deltas = values["skip-measure"]
     ? []
     : await measure(root, query, snap, hasEsmTargets, baseOverrides, values.env);

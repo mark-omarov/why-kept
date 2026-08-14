@@ -13,7 +13,7 @@
   "homepage": "https://github.com/mark-omarov/why-kept#readme",
   "bugs": "https://github.com/mark-omarov/why-kept/issues",
   "license": "MIT",
-  "author": "Mark Omarov <mark@omarov.dev>",
+  "author": "Mark Omarov <15357910+mark-omarov@users.noreply.github.com>",
   "repository": "github:mark-omarov/why-kept",
   "bin": {
     "why-kept": "./dist/cli.js"

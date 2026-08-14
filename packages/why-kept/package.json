@@ -11,7 +11,13 @@
     "vite"
   ],
   "license": "MIT",
+  "author": "Mark Omarov <mark@omarov.dev>",
   "repository": "github:mark-omarov/why-kept",
+  "homepage": "https://github.com/mark-omarov/why-kept#readme",
+  "bugs": "https://github.com/mark-omarov/why-kept/issues",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "bin": {
     "why-kept": "./dist/cli.js"
   },

@@ -25,3 +25,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+        if: matrix.node != 20

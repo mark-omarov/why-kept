@@ -26,7 +26,7 @@ describe("lodash (CommonJS)", () => {
     expect(snap.modules.get(chain[0])?.isEntry).toBe(true);
 
     const deltas = await measure(root, "lodash", snap, false);
-    const removal = deltas.find((d) => d.label === "cost of presence");
+    const removal = deltas.find((d) => d.label === "without lodash");
     expect(removal!.gzip).toBeGreaterThan(1000);
   });
 });

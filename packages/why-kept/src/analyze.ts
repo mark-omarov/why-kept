@@ -77,8 +77,8 @@ export async function classify(
     causes.push({
       kind: "cjs",
       confidence: "high",
-      detail: `${cjs.length} of ${kept.length} kept modules are CommonJS; Rolldown tree-shakes CJS exports, but interop retains more than ESM would`,
-      fix: "prefer an ESM build or an ESM alternative of this package",
+      detail: `${cjs.length} of ${kept.length} kept modules are CommonJS, which limits tree-shaking`,
+      fix: "look for an ESM build or an ESM alternative",
     });
   }
 
@@ -89,8 +89,8 @@ export async function classify(
     causes.push({
       kind: "no-sideeffects-flag",
       confidence: "medium",
-      detail: `${pkg.json.name}/package.json does not declare "sideEffects", so every imported module is assumed side-effectful and kept whole`,
-      fix: 'check the measured "if marked side-effect free" delta below; if it is large, ask upstream for a "sideEffects" declaration',
+      detail: `${pkg.json.name}/package.json has no "sideEffects" field, so bundlers keep every imported module whole`,
+      fix: 'if the measured saving below is large, ask upstream to add "sideEffects": false',
     });
   }
 
@@ -110,13 +110,13 @@ function scanImportStatements(snap: Snapshot, query: string, root: string): Caus
           kind: "side-effect-import",
           confidence: "high",
           detail: `${shortId(m.id, root)}: \`${statement}\``,
-          fix: "a bare import keeps the module purely for its side effects; remove it or import bindings instead",
+          fix: "a bare import keeps the whole module for its side effects — drop it, or import something from it",
         });
       } else if (/^export\s*\*/.test(statement)) {
         causes.push({
           kind: "export-star",
           confidence: "low",
-          detail: `${shortId(m.id, root)}: \`${statement}\` re-exports everything; namespace re-exports can defeat export-level tree-shaking`,
+          detail: `${shortId(m.id, root)}: \`${statement}\` re-exports everything, which can defeat export-level tree-shaking`,
           fix: "re-export named bindings instead of `export *`",
         });
       }

@@ -27,14 +27,11 @@ const yellow = paint("33");
 const mark = { high: "●", medium: "◐", low: "○" };
 
 export function reconcile(causes: Cause[], deltas: Delta[]): Cause[] {
-  const flag = deltas.find((d) => d.label === "if marked side-effect free");
+  const flag = deltas.find((d) => d.label === "as side-effect free");
   if (!flag || flag.gzip !== 0) return causes;
   return causes.map((c) =>
     c.kind === "no-sideeffects-flag"
-      ? {
-          ...c,
-          detail: `${c.detail}; measured below: the flag would save nothing here — kept for its used exports`,
-        }
+      ? { ...c, detail: `${c.detail} (measured below: adding the flag saves nothing here)` }
       : c,
   );
 }
@@ -70,13 +67,13 @@ export function render(r: Report, limit = 8): string {
   const plural = r.keptModules === 1 ? "module" : "modules";
   const envTag = r.env === "client" ? "" : ` ${dim(`[env: ${r.env}]`)}`;
   const lines = [
-    `${bold(`why-kept ${r.query}`)}${envTag} — ${r.keptModules} ${plural} kept, ${kb(r.keptBytes)} rendered ${dim("(pre-minify)")}; bundle: ${kb(r.totalBytes)} minified, ${kb(r.totalGzip)} gzip`,
+    `${bold(`why-kept ${r.query}`)}${envTag} — ${r.keptModules} ${plural} kept · bundle ${kb(r.totalBytes)} (${kb(r.totalGzip)} gzip)`,
     ...(r.versions ? [`${bold("versions")} ${r.versions}`] : []),
     "",
     bold("import chain"),
     `  ${r.chain.map((id) => shortId(id, r.root)).join(dim(" → "))}`,
     "",
-    bold("kept modules (largest first)"),
+    bold(`kept modules ${dim("(largest first, sizes before minify)")}`),
     ...(() => {
       const rows = r.exports.slice(0, limit);
       const width = Math.max(...rows.map((e) => kb(e.bytes).length));
@@ -99,22 +96,26 @@ export function render(r: Report, limit = 8): string {
     "",
     bold("why it is kept"),
     ...r.causes.flatMap((c) => [
-      `  ${yellow(mark[c.confidence])} [${c.confidence}] ${bold(c.kind)} — ${c.detail}`,
+      `  ${yellow(mark[c.confidence])} ${bold(c.kind)}${confidenceTag(c.confidence)} — ${c.detail}`,
       dim(`      fix: ${c.fix}`),
     ]),
-    ...(r.causes.length === 0
-      ? [dim("  no specific cause detected; it is simply imported and used")]
-      : []),
+    ...(r.causes.length === 0 ? [dim("  nothing suspicious — imported and used")] : []),
     "",
-    bold("measured (variant rebuilds, whole-bundle delta)"),
+    bold("measured by rebuilding"),
     ...r.deltas.flatMap((d) => [
       Number.isNaN(d.gzip)
         ? dim(`  ${d.label}`)
-        : `  ${d.label}: ${green(`−${kb(d.gzip)} gzip`)} ${dim(`(−${kb(d.bytes)} raw)`)}`,
+        : d.gzip === 0
+          ? `  ${d.label}: ${dim("no change")}`
+          : `  ${d.label}: bundle shrinks ${green(`${kb(d.gzip)} gzip`)} ${dim(`(${kb(d.bytes)} raw)`)}`,
       ...(d.note ? [dim(`      ${d.note}`)] : []),
     ]),
   ];
   return lines.join("\n");
+}
+
+function confidenceTag(confidence: "high" | "medium" | "low"): string {
+  return confidence === "high" ? "" : dim(confidence === "medium" ? " (likely)" : " (possible)");
 }
 
 function kb(n: number): string {

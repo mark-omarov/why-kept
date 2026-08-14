@@ -21,8 +21,8 @@ export async function measure(
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const variants: Array<[string, string | undefined, InlineConfig]> = [
     [
-      "cost of presence",
-      "upper bound of savings — a replacement would add its own weight",
+      `without ${query}`,
+      "upper bound: a replacement would add its own weight back",
       {
         build: {
           rolldownOptions: {
@@ -34,7 +34,7 @@ export async function measure(
   ];
   if (hasEsmTargets) {
     variants.push([
-      "if marked side-effect free",
+      "as side-effect free",
       undefined,
       {
         build: {
@@ -70,8 +70,7 @@ export async function measure(
   }
   if (!hasEsmTargets) {
     deltas.push({
-      label:
-        "if marked side-effect free: n/a — side-effect flags cannot drop CommonJS require chains",
+      label: "as side-effect free: n/a for CommonJS (the flag only works on ESM)",
       bytes: Number.NaN,
       gzip: Number.NaN,
     });

@@ -23,7 +23,7 @@ describe("lodash (CommonJS)", () => {
     expect(causes.some((c) => c.kind === "cjs")).toBe(true);
 
     const chain = chainToEntry(snap, kept[0].id);
-    expect(snap.modules.get(chain[0])?.isEntry).toBe(true);
+    expect(snap.modules.get(chain[0].id)?.isEntry).toBe(true);
 
     const deltas = await measure(root, "lodash", snap, false);
     const removal = deltas.find((d) => d.label === "without lodash");
@@ -63,7 +63,8 @@ describe("dynamic import", () => {
     expect(kept.length).toBeGreaterThan(0);
 
     const chain = chainToEntry(snap, kept[0].id);
-    expect(snap.modules.get(chain[0])?.isEntry).toBe(true);
+    expect(snap.modules.get(chain[0].id)?.isEntry).toBe(true);
+    expect(chain.some((l) => l.dynamic)).toBe(true);
   });
 });
 

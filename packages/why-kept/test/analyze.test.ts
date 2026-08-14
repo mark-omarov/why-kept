@@ -45,13 +45,17 @@ describe("findTargets", () => {
 });
 
 describe("chainToEntry", () => {
-  test("returns entry-to-target chain", () => {
+  test("returns entry-to-target chain and marks dynamic edges", () => {
     const snap = snapshot([
-      mod("/p/main.js", { isEntry: true, importedIds: ["/p/mid.js"] }),
-      mod("/p/mid.js", { importers: ["/p/main.js"], importedIds: ["/p/leaf.js"] }),
-      mod("/p/leaf.js", { importers: ["/p/mid.js"] }),
+      mod("/p/main.js", { isEntry: true }),
+      mod("/p/mid.js", { importers: ["/p/main.js"] }),
+      mod("/p/leaf.js", { dynamicImporters: ["/p/mid.js"] }),
     ]);
-    expect(chainToEntry(snap, "/p/leaf.js")).toEqual(["/p/main.js", "/p/mid.js", "/p/leaf.js"]);
+    expect(chainToEntry(snap, "/p/leaf.js")).toEqual([
+      { id: "/p/main.js", dynamic: false },
+      { id: "/p/mid.js", dynamic: false },
+      { id: "/p/leaf.js", dynamic: true },
+    ]);
   });
 });
 

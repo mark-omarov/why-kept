@@ -1,5 +1,5 @@
 import type { Snapshot } from "./capture.ts";
-import type { Cause, ExportsDiff } from "./analyze.ts";
+import type { Cause, ChainLink, ExportsDiff } from "./analyze.ts";
 import type { Delta } from "./counterfactual.ts";
 import { shortId } from "./analyze.ts";
 
@@ -12,7 +12,7 @@ export interface Report {
   keptBytes: number;
   totalBytes: number;
   totalGzip: number;
-  chain: string[];
+  chain: ChainLink[];
   exports: ExportsDiff[];
   causes: Cause[];
   deltas: Delta[];
@@ -42,7 +42,7 @@ export function buildReport(
   env: string,
   versions: string | null,
   snap: Snapshot,
-  chain: string[],
+  chain: ChainLink[],
   exports: ExportsDiff[],
   causes: Cause[],
   deltas: Delta[],
@@ -71,7 +71,10 @@ export function render(r: Report, limit = 8): string {
     ...(r.versions ? [`${bold("versions")} ${r.versions}`] : []),
     "",
     bold("import chain"),
-    `  ${r.chain.map((id) => shortId(id, r.root)).join(dim(" → "))}`,
+    `  ${r.chain
+      .map((l, i) => (i === 0 ? "" : dim(l.dynamic ? " ⇢ " : " → ")) + shortId(l.id, r.root))
+      .join("")}`,
+    ...(r.chain.some((l) => l.dynamic) ? [dim("  ⇢ dynamic import")] : []),
     "",
     bold(`kept modules ${dim("(largest first, sizes before minify)")}`),
     ...(() => {

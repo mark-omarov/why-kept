@@ -25,16 +25,24 @@ export function findTargets(snap: Snapshot, query: string): Mod[] {
   return hits.length > 0 ? hits : all.filter((m) => m.id.includes(query));
 }
 
-export function chainToEntry(snap: Snapshot, from: string): string[] {
+export interface ChainLink {
+  id: string;
+  dynamic: boolean;
+}
+
+export function chainToEntry(snap: Snapshot, from: string): ChainLink[] {
   const prev = new Map<string, string>([[from, ""]]);
   const queue = [from];
   for (const id of queue) {
     const m = snap.modules.get(id);
     if (!m) continue;
     if (m.isEntry) {
-      const chain: string[] = [];
-      for (let cur: string | undefined = id; cur; cur = prev.get(cur)) chain.push(cur);
-      return chain;
+      const ids: string[] = [];
+      for (let cur: string | undefined = id; cur; cur = prev.get(cur)) ids.push(cur);
+      return ids.map((link, i) => ({
+        id: link,
+        dynamic: i > 0 && (snap.modules.get(link)?.dynamicImporters.includes(ids[i - 1]) ?? false),
+      }));
     }
     for (const importer of [...m.importers, ...m.dynamicImporters]) {
       if (!prev.has(importer)) {
@@ -43,7 +51,7 @@ export function chainToEntry(snap: Snapshot, from: string): string[] {
       }
     }
   }
-  return [from];
+  return [{ id: from, dynamic: false }];
 }
 
 export function exportsDiff(snap: Snapshot, targets: Mod[]): ExportsDiff[] {

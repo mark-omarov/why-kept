@@ -1,5 +1,7 @@
 # why-kept
 
+[![ci](https://github.com/mark-omarov/why-kept/actions/workflows/ci.yml/badge.svg)](https://github.com/mark-omarov/why-kept/actions/workflows/ci.yml) [![npm why-kept](https://img.shields.io/npm/v/why-kept?label=why-kept)](https://www.npmjs.com/package/why-kept) [![npm rolldown-plugin-metafile](https://img.shields.io/npm/v/rolldown-plugin-metafile?label=rolldown-plugin-metafile)](https://www.npmjs.com/package/rolldown-plugin-metafile)
+
 `why-kept` is a command-line tool that explains why a package survived tree-shaking in a Vite 8 (Rolldown) build, and measures what it costs by rebuilding your app without it. Bundle analyzers like [Sonda](https://sonda.dev) or the official [Vite DevTools](https://devtools.vite.dev) show what is in the bundle. `why-kept` answers the follow-up question: why is it still there, and what would a fix save?
 
 ```sh

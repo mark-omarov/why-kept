@@ -195,25 +195,30 @@ describe("parity with esbuild's own metafile", () => {
 });
 
 describe("inside a tsdown build", () => {
-  test("dual-format build keeps both formats in one metafile", { timeout: 60_000 }, async () => {
-    const dir = appFixture();
-    const outDir = join(dir, "dist");
-    await tsdownBuild({
-      entry: join(dir, "entry.js"),
-      outDir,
-      format: ["esm", "cjs"],
-      plugins: [metafile()],
-      dts: false,
-      logLevel: "silent",
-    });
+  const tsdownSupported = "withResolvers" in Promise;
+  test.skipIf(!tsdownSupported)(
+    "dual-format build keeps both formats in one metafile",
+    { timeout: 60_000 },
+    async () => {
+      const dir = appFixture();
+      const outDir = join(dir, "dist");
+      await tsdownBuild({
+        entry: join(dir, "entry.js"),
+        outDir,
+        format: ["esm", "cjs"],
+        plugins: [metafile()],
+        dts: false,
+        logLevel: "silent",
+      });
 
-    const meta = readMetafile(outDir);
-    const keys = Object.keys(meta.outputs);
-    expect(keys.some((key) => key.endsWith(".mjs"))).toBe(true);
-    expect(keys.some((key) => key.endsWith(".cjs") || key.endsWith(".js"))).toBe(true);
-    const compatible: EsbuildMetafile = meta;
-    await analyzeMetafile(compatible);
-  });
+      const meta = readMetafile(outDir);
+      const keys = Object.keys(meta.outputs);
+      expect(keys.some((key) => key.endsWith(".mjs"))).toBe(true);
+      expect(keys.some((key) => key.endsWith(".cjs") || key.endsWith(".js"))).toBe(true);
+      const compatible: EsbuildMetafile = meta;
+      await analyzeMetafile(compatible);
+    },
+  );
 });
 
 describe("inside a vite build", () => {

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { capture, loadConfigWithout } from "../src/capture.ts";
 import { chainToEntry, classify, findTargets } from "../src/analyze.ts";
-import { measure } from "../src/counterfactual.ts";
+import { measure, sideEffectFreePlugin } from "../src/counterfactual.ts";
 
 const fixture = (name: string) =>
   fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url));
@@ -25,7 +25,7 @@ describe("lodash (CommonJS)", () => {
     const chain = chainToEntry(snap, kept[0].id);
     expect(snap.modules.get(chain[0].id)?.isEntry).toBe(true);
 
-    const deltas = await measure(root, "lodash", snap, false);
+    const deltas = await measure(root, "lodash", snap, { isPackage: true, hasEsm: false });
     const removal = deltas.find((d) => d.label === "without lodash");
     expect(removal!.gzip).toBeGreaterThan(1000);
   });
@@ -42,6 +42,23 @@ describe("core-js (bare side-effect import)", () => {
     const bare = causes.find((c) => c.kind === "side-effect-import");
     expect(bare?.detail).toContain("core-js");
   });
+
+  test(
+    "side-effect-free variant overrides a declared sideEffects flag",
+    { timeout: 120_000 },
+    async () => {
+      const root = fixture("side-effect");
+      const plain = await capture(root, () => false);
+      const flagged = await capture(root, () => false, {
+        plugins: [sideEffectFreePlugin("core-js")],
+      });
+      const of = (snap: typeof plain) =>
+        [...snap.modules.values()].filter((m) => m.id.includes("/node_modules/core-js/"));
+      expect(of(plain).length).toBeGreaterThan(0);
+      expect(of(plain).some((m) => m.sideEffects === false)).toBe(false);
+      expect(of(flagged).every((m) => m.sideEffects === false)).toBe(true);
+    },
+  );
 });
 
 describe("marked (no sideEffects flag)", () => {

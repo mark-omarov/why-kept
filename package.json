@@ -8,6 +8,7 @@
     "typecheck": "pnpm --filter why-kept typecheck",
     "lint": "oxlint packages",
     "fmt": "oxfmt packages",
+    "version": "changeset version && pnpm install --lockfile-only",
     "release": "pnpm build && pnpm exec changeset publish"
   },
   "devDependencies": {

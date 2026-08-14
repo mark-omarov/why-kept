@@ -1,5 +1,5 @@
 import { mkdirSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import type { Plugin } from "rolldown";
 
 export interface MetafileImport {
@@ -25,7 +25,7 @@ export interface Metafile {
 export function metafile(file = "metafile.json"): Plugin {
   const cwd = process.cwd();
   const rel = (id: string) => (isAbsolute(id) ? relative(cwd, id) : id);
-  const inputs: Metafile["inputs"] = {};
+  let inputs: Metafile["inputs"] = {};
 
   const toImport = (id: string, kind: MetafileImport["kind"]): MetafileImport => ({
     path: rel(id),
@@ -35,6 +35,9 @@ export function metafile(file = "metafile.json"): Plugin {
 
   return {
     name: "metafile",
+    buildStart() {
+      inputs = {};
+    },
     buildEnd() {
       for (const id of this.getModuleIds()) {
         const info = this.getModuleInfo(id);
@@ -83,12 +86,12 @@ export function metafile(file = "metafile.json"): Plugin {
             ...output.dynamicImports.map((path) => ({ path, kind: "dynamic-import" as const })),
           ],
           exports: [...output.exports],
-          ...(output.isEntry && output.facadeModuleId
+          ...((output.isEntry || output.isDynamicEntry) && output.facadeModuleId
             ? { entryPoint: rel(output.facadeModuleId) }
             : {}),
         };
       }
-      const dir = options.dir ?? cwd;
+      const dir = options.dir ?? (options.file ? dirname(options.file) : cwd);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, file), JSON.stringify({ inputs, outputs }, null, 2));
     },

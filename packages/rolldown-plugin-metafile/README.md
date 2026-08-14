@@ -2,7 +2,7 @@
 
 Emits an esbuild-compatible metafile from Rolldown, tsdown, and Vite builds. The existing ecosystem of metafile tools keeps working: esbuild's own [Bundle Size Analyzer](https://esbuild.github.io/analyze/), bundle-buddy, CI size-diff bots, and anything else that reads the format.
 
-Rolldown does not emit metafiles yet ([rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)). This plugin fills the gap from the public plugin API, today.
+Rolldown does not emit metafiles yet ([rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)). This plugin fills the gap from the public plugin API for now.
 
 ## Usage
 

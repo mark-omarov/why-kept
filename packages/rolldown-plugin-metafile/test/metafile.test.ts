@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { analyzeMetafile, type Metafile as EsbuildMetafile } from "esbuild";
+import { analyzeMetafile, build as esbuildBuild, type Metafile as EsbuildMetafile } from "esbuild";
 import { rolldown } from "rolldown";
 import { build as tsdownBuild } from "tsdown";
 import { build as viteBuild } from "vite";
@@ -76,6 +76,48 @@ describe("raw rolldown (no vite)", () => {
     expect(Math.abs(attributed - mainChunk!.bytes)).toBeLessThan(mainChunk!.bytes * 0.05);
     expect(mainChunk!.imports.some((imp) => imp.kind === "dynamic-import")).toBe(true);
     expect(Object.keys(meta.outputs).length).toBeGreaterThan(1);
+  });
+});
+
+describe("parity with esbuild's own metafile", () => {
+  test("same source produces structurally equivalent files", { timeout: 60_000 }, async () => {
+    const dir = appFixture();
+
+    const esbuildResult = await esbuildBuild({
+      entryPoints: [join(dir, "entry.js")],
+      bundle: true,
+      splitting: true,
+      format: "esm",
+      outdir: join(dir, "esbuild-out"),
+      metafile: true,
+      logLevel: "silent",
+    });
+    const theirs = esbuildResult.metafile;
+
+    const bundle = await rolldown({ input: join(dir, "entry.js"), plugins: [metafile()] });
+    await bundle.write({ dir: join(dir, "rolldown-out") });
+    await bundle.close();
+    const ours = readMetafile(join(dir, "rolldown-out"));
+
+    const inputSet = (meta: EsbuildMetafile) =>
+      Object.keys(meta.inputs)
+        .filter((key) => !key.startsWith("\0"))
+        .sort();
+    expect(inputSet(ours)).toEqual(inputSet(theirs));
+
+    const entryImports = (meta: EsbuildMetafile) => {
+      const key = Object.keys(meta.inputs).find((k) => k.endsWith("entry.js"))!;
+      return meta.inputs[key].imports.map((imp) => `${imp.kind}:${imp.path}`).sort();
+    };
+    expect(entryImports(ours)).toEqual(entryImports(theirs));
+
+    const entryPoints = (meta: EsbuildMetafile) =>
+      Object.values(meta.outputs)
+        .map((output) => output.entryPoint)
+        .filter(Boolean)
+        .map((entry) => entry!.split("/").pop())
+        .sort();
+    expect(entryPoints(ours)).toEqual(entryPoints(theirs));
   });
 });
 

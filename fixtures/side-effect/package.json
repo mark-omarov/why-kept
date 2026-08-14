@@ -1,0 +1,6 @@
+{
+  "name": "fixture-side-effect",
+  "private": true,
+  "type": "module",
+  "dependencies": { "core-js": "^3.38.0" }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "why-kept-workspace",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter why-kept build",
+    "test": "pnpm --filter why-kept test",
+    "typecheck": "pnpm --filter why-kept typecheck",
+    "lint": "oxlint packages",
+    "fmt": "oxfmt packages"
+  },
+  "devDependencies": {
+    "oxlint": "^1.78.0",
+    "oxfmt": "^0.63.0"
+  }
+}

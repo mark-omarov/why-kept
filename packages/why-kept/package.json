@@ -1,0 +1,40 @@
+{
+  "name": "why-kept",
+  "version": "0.1.0",
+  "description": "Explains why a module survived tree-shaking in your Vite (Rolldown) build — with measured, not guessed, byte costs.",
+  "keywords": [
+    "analyzer",
+    "bundle",
+    "bundle-size",
+    "rolldown",
+    "tree-shaking",
+    "vite"
+  ],
+  "license": "MIT",
+  "repository": "github:mark-omarov/why-kept",
+  "bin": {
+    "why-kept": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsdown src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "es-module-lexer": "^1.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsdown": "^0.9.9",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "vite": ">=8.0.0"
+  }
+}

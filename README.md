@@ -1,0 +1,66 @@
+# why-kept
+
+Explains **why a module survived tree-shaking** in your Vite 8 (Rolldown) build — and what it actually costs, measured by rebuilding, not estimated.
+
+Bundle analyzers show you *what* is in your bundle. `why-kept` answers the next question: *why is it still there, and what would fixing it save?*
+
+```sh
+npx why-kept lodash
+```
+
+```
+why-kept lodash — 1 module kept, 177.1 kB rendered (pre-minify); bundle: 70.2 kB minified, 25.6 kB gzip
+
+import chain
+  index.html → main.js → lodash/lodash.js
+
+exports (kept / removed by tree-shaking)
+  lodash/lodash.js  177.1 kB  cjs — export-level data n/a
+
+why it is kept
+  ● [high] cjs — 1 of 1 kept modules are CommonJS; Rolldown tree-shakes CJS exports, but interop retains more than ESM would
+      fix: prefer an ESM build or an ESM alternative of this package
+  ◐ [medium] no-sideeffects-flag — lodash/package.json does not declare "sideEffects", so every imported module is assumed side-effectful and kept whole
+      fix: check the measured "if marked side-effect free" delta below; if it is large, ask upstream for a "sideEffects" declaration
+
+measured (variant rebuilds, whole-bundle delta)
+  if removed entirely: −25.1 kB gzip (−69.5 kB raw)
+  if marked side-effect free: n/a — side-effect flags cannot drop CommonJS require chains
+```
+
+## How it works
+
+1. **Capture** — runs your Vite build in-memory (`build.write: false`) with a plugin that snapshots the module graph at `buildEnd` and per-module `renderedExports` / `renderedLength` from the output chunks. These are Rolldown's post-linking ground truth, not estimates.
+2. **Classify** — reports only evidence-backed causes, each labeled with confidence: CommonJS input format, bare side-effect imports (`import 'pkg'`), a missing `sideEffects` declaration, `export *` barrels.
+3. **Measure** — rebuilds variants (package externalized; package forced side-effect-free) and diffs real minified+gzip output. Rolldown is fast enough that counterfactual rebuilds cost seconds, which is what makes this design practical at all.
+
+What it deliberately does **not** do: guess statement-level purity decisions. Rolldown does not expose a tree-shaking decision trace ([rolldown#4145](https://github.com/rolldown/rolldown/issues/4145), [rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)), and inferring those reasons from outside the bundler produces confidently wrong answers. Everything this tool asserts is either read from the build or measured by rebuilding.
+
+## Usage
+
+```sh
+why-kept <package-or-path> [--root <dir>] [--json] [--skip-measure]
+```
+
+- `<package-or-path>` — an npm package name (`lodash`, `@scope/pkg`) or a path substring of a module id
+- `--root` — project root containing your Vite config (default: cwd)
+- `--json` — machine-readable report
+- `--skip-measure` — skip the variant rebuilds
+
+Requires Vite ≥ 8 (Rolldown-based).
+
+## Known limits
+
+- `renderedLength` is pre-minification; per-module sizes will not sum to the final bundle size. The measured deltas are post-minify and post-gzip — trust those.
+- `sideEffects`-flag analysis reads the resolved value; a plugin overriding side effects at resolve/load time can blur package.json attribution.
+- Export-level kept/removed data is only available for ESM modules; CJS exports resolve at runtime.
+
+## Development
+
+pnpm workspace: the tool lives in [`packages/why-kept`](packages/why-kept), real-package fixtures (lodash, core-js, marked) in [`fixtures/`](fixtures). Toolchain: tsdown, vitest, oxlint, oxfmt.
+
+```sh
+pnpm install
+pnpm test
+pnpm build
+```

@@ -1,0 +1,6 @@
+{
+  "name": "fixture-no-flag",
+  "private": true,
+  "type": "module",
+  "dependencies": { "marked": "^15.0.0" }
+}

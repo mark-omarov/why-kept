@@ -1,6 +1,6 @@
 # rolldown-plugin-metafile
 
-Emits an esbuild-compatible metafile from Rolldown, tsdown, and Vite builds. The existing ecosystem of metafile tools keeps working: esbuild's own [Bundle Size Analyzer](https://esbuild.github.io/analyze/), bundle-buddy, CI size-diff bots, and anything else that reads the format.
+`rolldown-plugin-metafile` is a bundler plugin that writes an esbuild-compatible metafile from Rolldown, tsdown, and Vite builds. The existing ecosystem of metafile tools keeps working: esbuild's own [Bundle Size Analyzer](https://esbuild.github.io/analyze/), bundle-buddy, CI size-diff bots, and anything else that reads the format.
 
 Rolldown does not emit metafiles yet ([rolldown#6425](https://github.com/rolldown/rolldown/issues/6425)). This plugin fills the gap from the public plugin API for now.
 
@@ -41,7 +41,7 @@ The metafile lands inside your output directory, so exclude it from publishing (
 
 Exact, read from the build: output sizes, chunk imports, exports, entry points, the input import graph (static and dynamic edges), and module format (`esm`/`cjs`). A module is external when the bundler kept no code for it, not guessed from its path, so bundled virtual modules stay inputs. Paths follow esbuild's convention: everything relative to the build's cwd, output keys including the out dir.
 
-`bytesInOutput`: exact when sourcemaps are enabled — attribution is computed from the chunk's own sourcemap, so minification and comment stripping are accounted for. Without sourcemaps it falls back to scaling Rolldown's pre-minification rendered sizes proportionally, which overweights comment-heavy modules. Enable `sourcemap` for numbers you want to trust.
+`bytesInOutput`: exact when sourcemaps are enabled, because attribution is computed from the chunk's own sourcemap, so minification and comment stripping are accounted for. Without sourcemaps it falls back to scaling Rolldown's pre-minification rendered sizes proportionally, which overweights comment-heavy modules. Enable `sourcemap` for numbers you want to trust.
 
 Not emitted: import kinds beyond `import-statement`/`dynamic-import` (no `require-call`, `import-rule`, `url-token`), `cssBundle`, and CSS outputs carry no input attribution (Vite emits CSS as assets).
 

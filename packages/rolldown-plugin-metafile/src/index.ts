@@ -23,7 +23,7 @@ export interface Metafile {
 }
 
 export function metafile(file = "metafile.json"): Plugin {
-  const cwd = process.cwd();
+  let cwd = process.cwd();
   const rel = (id: string) => (isAbsolute(id) ? relative(cwd, id) : id);
   let inputs: Metafile["inputs"] = {};
 
@@ -35,7 +35,8 @@ export function metafile(file = "metafile.json"): Plugin {
 
   return {
     name: "metafile",
-    buildStart() {
+    buildStart(options) {
+      cwd = options.cwd ?? process.cwd();
       inputs = {};
     },
     buildEnd() {

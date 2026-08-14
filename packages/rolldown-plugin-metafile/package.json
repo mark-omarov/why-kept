@@ -1,6 +1,6 @@
 {
   "name": "rolldown-plugin-metafile",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Emit an esbuild-compatible metafile from Rolldown, tsdown, or Vite builds.",
   "keywords": [
     "bundle-analysis",

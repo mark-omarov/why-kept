@@ -26,3 +26,32 @@ jobs:
       - run: pnpm test
       - run: pnpm build
         if: matrix.node != 20
+
+  dist-on-node-20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - run: node packages/why-kept/dist/cli.mjs lodash --root fixtures/lodash-cjs --skip-measure
+      - working-directory: packages/rolldown-plugin-metafile
+        run: |
+          node -e '
+          import("./dist/index.mjs").then(async ({ metafile }) => {
+            const { rolldown } = await import("rolldown")
+            const bundle = await rolldown({ input: "../../fixtures/side-effect/main.js", plugins: [metafile()] })
+            await bundle.write({ dir: ".tmp-smoke" })
+            await bundle.close()
+            const { readFileSync } = await import("node:fs")
+            const meta = JSON.parse(readFileSync(".tmp-smoke/metafile.json", "utf8"))
+            if (Object.keys(meta.outputs).length === 0) throw new Error("empty metafile")
+            console.log("dist ok on", process.version)
+          })'

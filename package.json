@@ -3,9 +3,9 @@
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "build": "pnpm --filter why-kept build",
-    "test": "pnpm --filter why-kept test",
-    "typecheck": "pnpm --filter why-kept typecheck",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
     "lint": "oxlint packages",
     "fmt": "oxfmt packages",
     "version": "changeset version && pnpm install --lockfile-only",
